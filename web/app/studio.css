@@ -1,0 +1,364 @@
+:root {
+  --background: #10151d;
+  --foreground: #f2f4f7;
+  --card: #171e29;
+  --card-foreground: #f2f4f7;
+  --popover: #1c2532;
+  --popover-foreground: #f2f4f7;
+  --primary: #e8ad55;
+  --primary-foreground: #151a22;
+  --secondary: #253140;
+  --secondary-foreground: #f2f4f7;
+  --muted: #253140;
+  --muted-foreground: #a6b1c0;
+  --accent: #354154;
+  --accent-foreground: #f2f4f7;
+  --border: #2b3544;
+  --input: #364254;
+  --ring: #e8ad55;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #10151d;
+  color: #f2f4f7;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+.workspace {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+.topbar {
+  height: 88px;
+  border-bottom: 1px solid #28313e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.topbar > span {
+  color: #a6b1c0;
+  font-size: 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: #f2f4f7;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+.brand > span {
+  color: #e8ad55;
+  font-size: 39px;
+}
+.brand small {
+  font-size: 14px;
+  font-weight: 400;
+  color: #a6b1c0;
+  border-left: 1px solid #394354;
+  padding-left: 18px;
+  margin-left: 10px;
+  letter-spacing: 0;
+}
+.intro {
+  padding: 34px 0 28px;
+}
+.eyebrow {
+  color: #e8ad55;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.intro h1 {
+  margin: 8px 0;
+  font-size: clamp(25px, 3vw, 36px);
+  font-weight: 600;
+  letter-spacing: -1px;
+}
+.intro > p:last-child {
+  color: #a6b1c0;
+  margin: 0;
+  font-size: 16px;
+}
+.studio {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(340px, 1.75fr) minmax(
+      235px,
+      0.8fr
+    );
+  gap: 28px;
+  align-items: start;
+}
+.panel {
+  background: #171e29;
+  border: 1px solid #2b3544;
+  border-radius: 14px;
+  padding: 24px;
+}
+.panel h2 {
+  font-size: 18px;
+  margin: 0;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.setup label {
+  display: block;
+  font-size: 14px;
+  color: #c2cad5;
+  margin: 20px 0 9px;
+}
+.setup input {
+  font-size: 16px;
+  height: 44px;
+  background: #101722;
+  border: 1px solid #354154;
+}
+.select-control {
+  width: 100%;
+  height: 44px !important;
+  background: #101722;
+  color: #f2f4f7;
+  font-size: 16px;
+}
+.primary-action {
+  width: 100%;
+  margin-top: 22px;
+  height: 45px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.note {
+  color: #a6b1c0;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-top: 20px;
+}
+.setup-bottom {
+  border-top: 1px solid #2b3544;
+  padding-top: 22px;
+  margin-top: 26px;
+}
+.setup-bottom p:not(.eyebrow) {
+  color: #a6b1c0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.board-area {
+  min-width: 0;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  aspect-ratio: 1;
+  border: 8px solid #293748;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px #0003;
+}
+.square {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+}
+.square.light {
+  background: #d3dce0;
+}
+.square.dark {
+  background: #607b8e;
+}
+.square:focus-visible {
+  outline: 3px solid #f5b654;
+  outline-offset: -3px;
+  z-index: 1;
+}
+.square.selected {
+  background: #dfa14c;
+}
+.piece {
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", serif;
+  font-size: clamp(30px, 4.5vw, 62px);
+  line-height: 1;
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+.piece.w {
+  color: #fff;
+  text-shadow: 0 2px 1px #0b152c;
+  -webkit-text-stroke: 1px #293748;
+}
+.piece.b {
+  color: #172331;
+  text-shadow: 0 1px 1px #fff5;
+}
+.rank-label,
+.file-label {
+  position: absolute;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.rank-label {
+  top: 4px;
+  left: 4px;
+}
+.file-label {
+  right: 4px;
+  bottom: 3px;
+}
+.light .rank-label,
+.light .file-label {
+  color: #476074;
+}
+.dark .rank-label,
+.dark .file-label {
+  color: #eef4f7;
+}
+.player-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 61px;
+}
+.player-strip strong {
+  display: block;
+  font-size: 15px;
+}
+.player-strip small {
+  display: block;
+  color: #a6b1c0;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  background: #253140;
+  border-radius: 8px;
+  font-size: 27px;
+}
+.avatar.self {
+  color: #e8ad55;
+}
+.board-badge {
+  margin-left: auto;
+  color: #a6b1c0;
+  border: 1px solid #354154;
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+.training h2 {
+  font-size: 25px;
+  margin-top: 13px;
+  letter-spacing: -0.4px;
+}
+.training-empty {
+  padding: 28px 0 24px;
+  text-align: center;
+}
+.training-empty > span {
+  color: #e8ad55;
+  font-size: 72px;
+}
+.training-empty h3 {
+  font-size: 16px;
+  margin: 6px 0 10px;
+}
+.training-empty p,
+.repertoire-note p {
+  color: #a6b1c0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.wide {
+  width: 100%;
+  margin-top: 10px;
+  height: 42px;
+}
+.repertoire-note {
+  margin-top: 25px;
+  border-top: 1px solid #2b3544;
+  padding-top: 21px;
+}
+.repertoire-note strong {
+  color: #c2cad5;
+  font-size: 14px;
+}
+.repertoire-note p {
+  margin-bottom: 0;
+}
+footer {
+  text-align: center;
+  font-size: 13px;
+  color: #7f8c9f;
+  padding: 25px 0 30px;
+}
+@media (max-width: 1100px) {
+  .workspace {
+    padding: 0 24px;
+  }
+  .studio {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .training {
+    grid-column: 1/-1;
+  }
+  .training-empty {
+    padding: 15px 0;
+  }
+}
+@media (max-width: 700px) {
+  .workspace {
+    padding: 0 16px;
+  }
+  .topbar {
+    height: 70px;
+  }
+  .brand small {
+    display: none;
+  }
+  .studio {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .setup {
+    order: 0;
+  }
+  .board-area {
+    order: 1;
+  }
+  .training {
+    order: 2;
+  }
+  .setup-bottom {
+    display: none;
+  }
+  .intro {
+    padding: 25px 0;
+  }
+  .piece {
+    font-size: clamp(25px, 10vw, 56px);
+  }
+  .panel {
+    padding: 20px;
+  }
+}
