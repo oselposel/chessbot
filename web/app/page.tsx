@@ -79,6 +79,7 @@ type Round = {
   steps: TrainingStep[];
   cursor: number;
   replay: boolean;
+  resumeAfterReplay: boolean;
   errors: string[];
   singleGameAcknowledged: boolean;
 };
@@ -86,6 +87,7 @@ const emptyRound = (): Round => ({
   steps: [],
   cursor: 0,
   replay: false,
+  resumeAfterReplay: false,
   errors: [],
   singleGameAcknowledged: false,
 });
@@ -172,6 +174,10 @@ export default function Home() {
   const editing = phase === "setup";
   const seedLength = session?.seed.length || 0;
   const played = Math.max(0, history.length - seedLength);
+  const partialReplayComplete =
+    phase === "complete" &&
+    roundRef.current.replay &&
+    roundRef.current.resumeAfterReplay;
   const limit =
     phase === "complete"
       ? played
@@ -290,7 +296,11 @@ export default function Home() {
     if (phase !== "loading" || !session || !auth || !clientRef.current) return;
     const round = roundRef.current;
     if (round.replay && round.cursor >= round.steps.length) {
-      finish("Stejná větev je zopakovaná až do konce.");
+      finish(
+        round.resumeAfterReplay
+          ? "Dosud odehraná část varianty je přesně zopakovaná. Můžeš pokračovat od poslední dosažené pozice."
+          : "Stejná větev je zopakovaná až do konce.",
+      );
       return;
     }
     if (played >= session.plies || chessRef.current.isGameOver()) {
@@ -446,7 +456,10 @@ export default function Home() {
   }
   useEffect(() => {
     if (phase !== "opponent" || !session || !data) return;
+    const round = roundRef.current;
     const timer = setTimeout(() => {
+      // Restarting/replaying invalidates this timer even before React's cleanup.
+      if (roundRef.current !== round || chessRef.current.fen() !== fen) return;
       const saved = roundRef.current.replay
         ? roundRef.current.steps[roundRef.current.cursor]
         : undefined;
@@ -560,8 +573,20 @@ export default function Home() {
     if (!session || (replay && !roundRef.current.steps.length)) return;
     stopRequest();
     setLastAnswer(null);
+    const round = roundRef.current;
     roundRef.current = replay
-      ? { ...roundRef.current, cursor: 0, replay: true, errors: [] }
+      ? {
+          ...round,
+          steps: [...round.steps],
+          cursor: 0,
+          replay: true,
+          resumeAfterReplay: round.replay
+            ? round.resumeAfterReplay
+            : phase !== "complete" &&
+              played < session.plies &&
+              !chessRef.current.isGameOver(),
+          errors: [],
+        }
       : emptyRound();
     chessRef.current = chessFromMoves(session.seed);
     sync();
@@ -573,8 +598,35 @@ export default function Home() {
     setFeedback({
       kind: "neutral",
       text: replay
-        ? "Opakuješ stejnou větev z téhož úvodu. Očekáváme zaznamenané tahy."
+        ? "Procvičuješ zaznamenanou část varianty ze stejného úvodu. Musíš zahrát původně uznané tahy; soupeř zopakuje své stejné odpovědi."
         : "Nové náhodné pokračování z téhož úvodu.",
+    });
+  }
+  function resumeTraining() {
+    const round = roundRef.current;
+    if (
+      !session ||
+      !auth ||
+      phase !== "complete" ||
+      !round.replay ||
+      !round.resumeAfterReplay
+    )
+      return;
+    stopRequest();
+    roundRef.current = {
+      ...round,
+      replay: false,
+      resumeAfterReplay: false,
+      cursor: round.steps.length,
+    };
+    setData(null);
+    setTarget(null);
+    setError("");
+    setGeneration((n) => n + 1);
+    setPhase("loading");
+    setFeedback({
+      kind: "neutral",
+      text: "Pokračuješ v původní variantě od poslední dosažené pozice. Nové uznané tahy i odpovědi soupeře se připojí k záznamu.",
     });
   }
   function submitMove(text: string) {
@@ -1091,7 +1143,9 @@ export default function Home() {
                           ? "Trénink je pozastavený, pozice zachována"
                           : phase === "single"
                             ? "Jediná partie · vyber další postup"
-                            : "Varianta dokončena"}
+                            : partialReplayComplete
+                              ? "Dosavadní část zopakovaná"
+                              : "Varianta dokončena"}
               </small>
             </div>
           </div>
@@ -1131,7 +1185,9 @@ export default function Home() {
             {editing
               ? "Nejdřív vyber úvod."
               : phase === "complete"
-                ? "Varianta dokončena."
+                ? partialReplayComplete
+                  ? "Dosavadní část zopakovaná."
+                  : "Varianta dokončena."
                 : phase === "single"
                   ? "Ve větvi zbývá jediná partie."
                   : phase === "loading"
@@ -1336,16 +1392,27 @@ export default function Home() {
               <Button
                 variant="outline"
                 className="wide"
-                disabled={
-                  phase !== "complete" ||
-                  !roundRef.current.steps.length ||
-                  !auth
-                }
+                disabled={!roundRef.current.steps.length || !auth}
                 onClick={() => restart(true)}
               >
                 <RefreshCw size={17} />
                 Zopakovat stejnou variantu
               </Button>
+              <p className="note">
+                Lze zopakovat i rozpracovanou variantu: od konce zadaného úvodu
+                až po poslední odehraný tah, včetně stejných odpovědí soupeře.
+              </p>
+              {phase === "complete" &&
+                roundRef.current.replay &&
+                roundRef.current.resumeAfterReplay && (
+                  <Button
+                    className="wide"
+                    disabled={!auth}
+                    onClick={resumeTraining}
+                  >
+                    Pokračovat od poslední pozice
+                  </Button>
+                )}
               <Button
                 variant="ghost"
                 className="wide"
@@ -1358,7 +1425,11 @@ export default function Home() {
           )}
           {phase === "complete" && (
             <div className="round-summary">
-              <h3>Shrnutí celé větve</h3>
+              <h3>
+                {partialReplayComplete
+                  ? "Shrnutí procvičené části"
+                  : "Shrnutí celé větve"}
+              </h3>
               <p>
                 {stats.correct} správných odpovědí · {stats.mistakes} mimo
                 repertoár · {stats.hints} nápověd

@@ -9,7 +9,7 @@ Osobní trénink šachových zahájení podle repertoáru libovolného hráče n
 1. Přihlas se přes Lichess svým účtem. Nickname hráče, jehož repertoár kopíruješ, může být jiný.
 2. Zvol barvu a zadej úvodní tahy zápisem nebo na šachovnici za obě strany. Mezinárodní SAN: `1. e4 e5 2. Nf3 Nc6`; UCI: `e2e4 e7e5 g1f3 b8c6`. Prázdný úvod začíná ze základní pozice.
 3. Zvol režim, délku pokračování a způsob losování soupeře. Pak spusť trénink.
-4. Po dokončení zopakuj přesně stejnou větev, nebo vylosuj jiné pokračování ze stejného úvodu.
+4. Kdykoli po prvním odehraném tahu použij „Zopakovat stejnou variantu“, i před dokončením. Při opakování musíš zahrát stejné uznané odpovědi a soupeř zopakuje své stejné tahy. Po procvičení rozpracované větve můžeš pokračovat od poslední dosažené pozice; po dokončení lze také vylosovat jiné pokračování ze stejného úvodu.
 
 ## Hodnocení a souvislé varianty
 
@@ -18,7 +18,7 @@ Osobní trénink šachových zahájení podle repertoáru libovolného hráče n
 - **Konkrétní varianta:** při prvním průchodu se doporučuje nejhranější odpověď a blízká druhá volba se také uznává. Doporučení se může při indexaci aktualizovat. Soupeř se losuje; po dokončení se přesně opakuje skutečně zahraná větev. Doložený tah mimo toleranci není označován za šachovou chybu, ale nepokračuje se jím.
 - **Průběžná data:** hrát lze hned po prvním snapshotu s tahy a hodnotí se aktuální top dvě s tolerancí. Podíly i pořadí se mohou ještě změnit; tah mimo aktuální toleranci ani neznámý tah se zatím nepočítá jako chyba. Prázdný průběžný snapshot není konec větve.
 - **Jediná partie:** když dokončená indexace potvrdí v pozici právě jednu partii (ne pouze jeden možný tah), trénink se pozastaví i na tahu soupeře. Můžeš zopakovat dosavadní větev, vylosovat jiné pokračování ze stejného úvodu, vybrat jinou pozici v editoru nebo pokračovat v této jedné partii. Editor převezme aktuální větev; pomocí „Zpět“ se můžeš vrátit k dřívější pozici. Potvrzení pokračování platí do konce daného průchodu; přesné opakování upozornění nepřerušuje. Pokud za úvodem ještě nejsou zahrané tahy, opakování je nedostupné.
-- **Opakování:** očekává přesně zaznamenané odpovědi a stejné soupeřovy tahy, i když původní průchod byl v režimu repertoáru. Používá uložené snapshoty bez síťových požadavků.
+- **Opakování:** lze spustit i během hry, tahu soupeře, načítání nebo pozastavení, jakmile je zaznamenaný alespoň jeden tah za úvodem. Očekává přesně dříve uznané odpovědi a stejné soupeřovy tahy, i když původní průchod byl v režimu repertoáru a jiná odpověď je častější nebo podobně častá. Používá uložené snapshoty bez síťových požadavků, zruší aktuální načítání/čekání soupeře a skončí na konci zaznamenané části; žádné další tahy nevymýšlí. Po procvičení rozpracované větve nabídne „Pokračovat od poslední pozice“, čímž se nové tahy připojují k původnímu záznamu. Opakovaný restart během procvičování zachová celou původní zaznamenanou část, ne pouze už zopakovaný úsek.
 - Úvod se automaticky přehraje. Skóre a limit 4/8/12/16 úplných tahů se počítají až od konce úvodu.
 - Trénink končí dosažením limitu, koncem partie nebo chybějícím doloženým pokračováním. Neznamená to vyčerpání všech možných větví ani procvičení celé partie.
 - Síťová chyba, timeout a nedokončená indexace trénink pozastaví. Tlačítko „Obnovit pozici“ pokračuje ze stejného místa; nejde o konec repertoáru.

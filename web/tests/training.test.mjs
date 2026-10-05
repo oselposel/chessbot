@@ -58,6 +58,18 @@ test("always accepts the leader and only a runner-up within 80%; replay remains 
   assert.equal(judgeMove("d2d4", close, relevantMoves(close)), "correct");
 });
 
+test("exact replay requires the recorded move even when another option is more popular", () => {
+  const options = normalizePosition(position(), new Chess()).moves;
+  const accepted = relevantMoves(options);
+  assert.deepEqual(
+    accepted.map((m) => m.uci),
+    ["e2e4"],
+  );
+  assert.equal(judgeMove("d2d4", options, accepted, "d2d4"), "correct");
+  assert.equal(judgeMove("e2e4", options, accepted, "d2d4"), "alternative");
+  assert.equal(judgeMove("a2a3", options, accepted, "d2d4"), "unknown");
+});
+
 test("ranking handles exact boundary, third-place exclusion, ties, unsorted input and fragmented repertoires", () => {
   const moves = (counts) =>
     counts.map((count, i) => ({ uci: String(i), san: String(i), count }));

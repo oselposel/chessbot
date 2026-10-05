@@ -130,7 +130,9 @@ try {
         .waitFor();
     const complete = () =>
       page
-        .getByRole("heading", { name: "Varianta dokončena.", exact: true })
+        .getByRole("heading", {
+          name: /^(Varianta dokončena|Dosavadní část zopakovaná)\.$/,
+        })
         .waitFor();
     const move = async (from, to) => {
       await page

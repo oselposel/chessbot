@@ -84,6 +84,8 @@ export function judgeMove(
 ) {
   const known = options.find((option) => option.uci === move);
   if (!known) return "unknown" as const;
+  // Exact replay follows the recorded choice, independently of popularity.
+  if (target && move === target) return "correct" as const;
   if (target && move !== target) return "alternative" as const;
   if (!accepted.some((option) => option.uci === move)) return "rare" as const;
   return "correct" as const;
