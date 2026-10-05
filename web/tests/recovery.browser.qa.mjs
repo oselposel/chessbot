@@ -190,7 +190,10 @@ try {
             1,
           );
           await page
-            .getByRole("button", { name: "Nápověda", exact: true })
+            .getByRole("button", {
+              name: "Prozradit správnou odpověď",
+              exact: true,
+            })
             .click();
           assert.match(await page.locator(".hint-list").innerText(), /Bc4/);
         } else {

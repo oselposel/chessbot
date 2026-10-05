@@ -34,6 +34,7 @@ node tests/single-game.browser.qa.mjs
 node tests/frequency.browser.qa.mjs
 node tests/replay.browser.qa.mjs
 node tests/recovery.browser.qa.mjs
+node tests/engine.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
@@ -47,3 +48,5 @@ Frequency QA ověřuje top dvě volby s relativní tolerancí 80 %, přesnou hra
 Replay QA ověřuje opakování před koncem, během načítání či tahu soupeře a po chybě, vynucení původních odpovědí za obě barvy, stejné tahy soupeře bez losování i síťových požadavků, zrušení starých požadavků/timerů, restart uvnitř opakování a pokračování s rozšířením původního záznamu.
 
 Recovery QA ověřuje nečinný stream s frontou 29, automatickou obnovu, omezený počet pokusů, zrušení při čekání na obnovu, uvolnění fronty i při zaseknutém rušení spojení a ruční obnovu bez ztráty tahů nebo skóre. Časovače jsou v izolovaném prohlížeči zrychlené; unit testy navíc ověřují keepalive řádky, nezměněné snapshoty, měnící se frontu a zaseknuté hlavičky odpovědi.
+
+Engine QA spouští skutečný vendored Stockfish WASM (trénink/OAuth nadále mockuje). Ověřuje stažení až po zapnutí, výpočet v prohlížeči, mat za černého, hloubku, změny pozic, skrytou PV, vypnutí a obnovu po chybě. Nápověda musí zvýraznit pouze výchozí figuru bez cílových polí; plná odpověď odhalí SAN/PV bez zahrání tahu a při přesném opakování respektuje zaznamenaný tah místo nejhranějšího. Unit testy kontrolují znaménko pro obě strany, bounds, SAN/promotion/castling, cache, přerušení výpočtu a ochranu před zastaralými výsledky.

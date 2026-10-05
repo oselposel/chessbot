@@ -221,7 +221,7 @@ try {
       await page.locator(".stats > div").first().locator("strong").innerText(),
       "0",
     );
-    await click("Nápověda");
+    await click("Prozradit správnou odpověď");
     assert.match(
       await page.locator(".hint-list").innerText(),
       scenario === "black" ? /Nf6 · cíl/ : /Bb5 · cíl/,

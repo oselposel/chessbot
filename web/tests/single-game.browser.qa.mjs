@@ -254,7 +254,7 @@ try {
       );
       await click("Pokračovat v této partii");
       await player();
-      await click("Nápověda");
+      await click("Prozradit správnou odpověď");
       assert.match(
         await page.locator(".hint-list").innerText(),
         /Bc4 · doporučení/,

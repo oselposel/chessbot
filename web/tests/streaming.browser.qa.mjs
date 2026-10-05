@@ -144,6 +144,22 @@ try {
         /0\s+Mimo repertoár/,
       );
       await page.getByRole("button", { name: "Nápověda", exact: true }).click();
+      assert.match(
+        await page.locator(".square.hinted").getAttribute("aria-label"),
+        /^g1,/,
+      );
+      assert.equal(
+        await page
+          .locator(".hint-list, .engine-pv, .move-dot, .capture-ring")
+          .count(),
+        0,
+      );
+      await page
+        .getByRole("button", {
+          name: "Prozradit správnou odpověď",
+          exact: true,
+        })
+        .click();
       if (policy === "advance") {
         // Move while indexing is unfinished: abort must release the serial queue.
         await move("g1", "f3");
@@ -166,6 +182,10 @@ try {
         await page.evaluate(() => window.streamQA.final());
         await page.waitForFunction(
           () => !document.querySelector(".loading-info"),
+        );
+        assert.match(
+          await page.locator(".square.hinted").getAttribute("aria-label"),
+          /^f1,/,
         );
         assert.match(await page.locator(".hint-list").innerText(), /Bc4/);
         if (policy === "line") {

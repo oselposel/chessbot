@@ -163,7 +163,9 @@ try {
       .getByText("Klikni na figuru a cílové pole", { exact: true })
       .waitFor();
     await page.waitForFunction(() => !document.querySelector(".loading-info"));
-    await page.getByRole("button", { name: "Nápověda", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Prozradit správnou odpověď", exact: true })
+      .click();
     const moveName = fixture.third ? "d4" : "Bb5";
     const hint = page.locator(".hint-list > div").filter({
       has: page.locator("strong", {

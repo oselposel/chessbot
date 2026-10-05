@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   LogIn,
   LogOut,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
   type AuthSession,
 } from "@/lib/lichess-auth";
 import { ExplorerClient, type PositionData } from "@/lib/explorer";
+import { EnginePanel } from "@/components/engine-panel";
 import {
   chessFromMoves,
   judgeMove,
@@ -140,6 +142,7 @@ export default function Home() {
   const [loadMessage, setLoadMessage] = useState("");
   const [error, setError] = useState("");
   const [hint, setHint] = useState(false);
+  const [reveal, setReveal] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{
     move: BookMove;
     total: number;
@@ -185,12 +188,24 @@ export default function Home() {
         ? roundRef.current.steps.length
         : session?.plies || Number(depth) * 2;
   const accepted = relevantMoves(data?.moves || []);
+  const hintMove = roundRef.current.replay
+    ? data?.moves.find((move) => move.uci === target)
+    : accepted[0];
+  const hintSquare =
+    hint && phase === "player" ? hintMove?.uci.slice(0, 2) : null;
   const latest = chessRef.current.history({ verbose: true }).at(-1);
+  useEffect(() => {
+    if (hintSquare)
+      document
+        .querySelector(".square.hinted")
+        ?.scrollIntoView({ block: "center" });
+  }, [hintSquare]);
   function sync() {
     setFen(chessRef.current.fen());
     setHistory(chessRef.current.history());
     setSelected(null);
     setHint(false);
+    setReveal(false);
     setPromotion(null);
   }
   useEffect(() => {
@@ -1087,10 +1102,10 @@ export default function Home() {
                 <button
                   type="button"
                   key={square}
-                  aria-label={`${square}${piece ? `, ${pieceLabel(piece.color, piece.type)}` : ""}`}
+                  aria-label={`${square}${piece ? `, ${pieceLabel(piece.color, piece.type)}` : ""}${hintSquare === square ? ", nápověda: tato figura má táhnout" : ""}`}
                   aria-pressed={selected === square}
                   onClick={() => clickSquare(square)}
-                  className={`square ${(f + r) % 2 ? "light" : "dark"} ${last ? "last-move" : ""} ${selected === square ? "selected" : ""}`}
+                  className={`square ${(f + r) % 2 ? "light" : "dark"} ${last ? "last-move" : ""} ${selected === square ? "selected" : ""} ${hintSquare === square ? "hinted" : ""}`}
                   disabled={(!editing && phase !== "player") || !!promotion}
                 >
                   {piece && (
@@ -1111,6 +1126,7 @@ export default function Home() {
               );
             })}
           </div>
+          <EnginePanel fen={fen} reveal={reveal && phase === "player"} />
           {promotion && (
             <div className="promotion" role="group" aria-label="Proměna pěšce">
               <span>Proměnit na:</span>
@@ -1353,17 +1369,42 @@ export default function Home() {
           <Button
             variant="outline"
             className="wide"
-            disabled={phase !== "player"}
+            disabled={phase !== "player" || !hintMove}
             onClick={() => {
-              if (!hint) setStats((s) => ({ ...s, hints: s.hints + 1 }));
+              if (!hint && !reveal)
+                setStats((s) => ({ ...s, hints: s.hints + 1 }));
+              setSelected(null);
               setHint(true);
             }}
           >
             <Lightbulb size={17} />
             Nápověda
           </Button>
-          {hint && data && (
+          <Button
+            variant="outline"
+            className="wide"
+            disabled={phase !== "player" || !hintMove}
+            onClick={() => {
+              if (!hint && !reveal)
+                setStats((s) => ({ ...s, hints: s.hints + 1 }));
+              setReveal(true);
+            }}
+          >
+            <Eye size={17} />
+            Prozradit správnou odpověď
+          </Button>
+          {reveal && phase === "player" && data && (
             <div className="hint-list">
+              <p>
+                Správná odpověď: <strong>{hintMove?.san}</strong>
+                {!roundRef.current.replay && accepted.length > 1
+                  ? ` (uznáme také ${accepted
+                      .slice(1)
+                      .map((move) => move.san)
+                      .join(", ")})`
+                  : ""}
+                .
+              </p>
               <p>
                 {target
                   ? roundRef.current.replay

@@ -105,6 +105,90 @@
 .square.selected {
   background: #e8ad55;
 }
+.square.hinted::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border: 4px solid #f7bc58;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px #172331,
+    inset 0 0 0 2px #172331;
+  z-index: 3;
+  pointer-events: none;
+}
+.engine-panel {
+  margin-top: 14px;
+  padding: 16px 18px;
+  background: #171e29;
+  border: 1px solid #334254;
+  border-radius: 10px;
+}
+.engine-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.engine-heading .eyebrow {
+  display: block;
+  margin: 0 0 4px;
+}
+.engine-score {
+  display: block;
+  color: #f2f4f7;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.evaluation-bar {
+  height: 12px;
+  background: #070c13;
+  border: 1px solid #607086;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+.evaluation-bar > span {
+  display: block;
+  height: 100%;
+  background: #dfe7ee;
+}
+.engine-status {
+  color: #bdc9d8;
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+.engine-note {
+  margin-bottom: 8px;
+}
+.engine-about {
+  font-size: 12px;
+  color: #a6b1c0;
+  line-height: 1.7;
+}
+.engine-about a {
+  color: #e8ad55;
+  text-decoration: underline;
+}
+.engine-about summary {
+  cursor: pointer;
+}
+.engine-pv {
+  padding-top: 14px;
+  font-size: 14px;
+  color: #bdc9d8;
+}
+.engine-pv strong {
+  color: #e8ad55;
+}
+.engine-pv p {
+  overflow-wrap: anywhere;
+  margin: 6px 0 0;
+}
+.hint-list > div {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
 .move-dot {
   width: 24%;
   height: 24%;

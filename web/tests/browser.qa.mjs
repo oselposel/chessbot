@@ -190,7 +190,9 @@ try {
     /v datech této pozice není/,
   );
   assert.match(await page.locator(".board-badge").innerText(), /^0 \/ /);
-  await page.getByRole("button", { name: "Nápověda", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Prozradit správnou odpověď", exact: true })
+    .click();
   assert.match(await page.locator(".hint-list").innerText(), /Bc4/);
   assert.match(await page.locator(".hint-list").innerText(), /Bb5/);
   // The second-most-common answer is accepted in repertoire mode.
@@ -261,7 +263,9 @@ try {
     })
     .click();
   await waitPlayer();
-  await page.getByRole("button", { name: "Nápověda", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Prozradit správnou odpověď", exact: true })
+    .click();
   assert.match(
     await page.locator(".hint-list").innerText(),
     /Bc4 · doporučení/,
