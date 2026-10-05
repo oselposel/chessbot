@@ -8,6 +8,7 @@ import {
   chessFromMoves,
   relevantMoves,
   judgeMove,
+  shouldPauseForSingleGame,
 } from "../lib/training.ts";
 import { ExplorerClient, normalizePosition } from "../lib/explorer.ts";
 import {
@@ -54,6 +55,25 @@ test("accepts multiple relevant alternatives; fixed-line alternatives are not er
   assert.equal(judgeMove("d2d4", options, relevantMoves(options, 0.5)), "rare");
   assert.equal(relevantMoves(options, 0.9)[0].uci, "e2e4");
 });
+test("single-game notice uses completed game counts, not the number of moves, and skips replay/acknowledged rounds", () => {
+  const single = { total: 1, complete: true };
+  assert.equal(shouldPauseForSingleGame(single, false, false), true);
+  assert.equal(
+    shouldPauseForSingleGame({ total: 1, complete: false }, false, false),
+    false,
+  );
+  assert.equal(
+    shouldPauseForSingleGame({ total: 2, complete: true }, false, false),
+    false,
+  );
+  assert.equal(
+    shouldPauseForSingleGame({ total: 0, complete: true }, false, false),
+    false,
+  );
+  assert.equal(shouldPauseForSingleGame(single, true, false), false);
+  assert.equal(shouldPauseForSingleGame(single, false, true), false);
+});
+
 test("normalizes Chess960-style castling and filters impossible moves", () => {
   const chess = parseOpening("e4 e5 Nf3 Nc6 Bc4 Bc5");
   const data = normalizePosition(

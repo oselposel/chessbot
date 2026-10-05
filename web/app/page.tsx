@@ -42,6 +42,7 @@ import {
   openingNotation,
   parseOpening,
   relevantMoves,
+  shouldPauseForSingleGame,
   type TrainingConfig,
   type TrainingStep,
 } from "@/lib/training";
@@ -70,19 +71,22 @@ const names: Record<string, string> = {
 };
 const pieceLabel = (color: string, type: string) =>
   `${color === "w" ? (type === "q" || type === "r" ? "bílá" : "bílý") : type === "q" || type === "r" ? "černá" : "černý"} ${names[type]}`;
-type Phase = "setup" | "loading" | "player" | "opponent" | "complete" | "error";
+type Phase =
+  "setup" | "loading" | "player" | "opponent" | "complete" | "single" | "error";
 type Feedback = { kind: "neutral" | "success" | "error"; text: string };
 type Round = {
   steps: TrainingStep[];
   cursor: number;
   replay: boolean;
   errors: string[];
+  singleGameAcknowledged: boolean;
 };
 const emptyRound = (): Round => ({
   steps: [],
   cursor: 0,
   replay: false,
   errors: [],
+  singleGameAcknowledged: false,
 });
 const DRAFT = "chessbot.training.draft.v2";
 function Choice({
@@ -155,6 +159,7 @@ export default function Home() {
   const roundRef = useRef<Round>(emptyRound());
   const clientRef = useRef<ExplorerClient | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const singleNoticeRef = useRef<HTMLDivElement | null>(null);
   const initialization = useRef<Promise<AuthSession | null> | null>(null);
   const [generation, setGeneration] = useState(0);
   const trainingColor = session?.color || color;
@@ -282,6 +287,10 @@ export default function Home() {
     setPhase("complete");
     setFeedback({ kind: "success", text: reason });
   }
+  useEffect(() => {
+    if (phase === "single")
+      singleNoticeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [phase]);
   function stopRequest() {
     const controller = controllerRef.current;
     controllerRef.current = null;
@@ -323,8 +332,21 @@ export default function Home() {
     const receive = (position: PositionData) => {
       if (!isCurrent()) return;
       setData(position);
+      const singleGame = shouldPauseForSingleGame(
+        position,
+        round.replay,
+        round.singleGameAcknowledged,
+      );
       if (!position.moves.length) {
-        if (position.complete)
+        if (singleGame) {
+          setPhase("single");
+          setSelected(null);
+          setPromotion(null);
+          setFeedback({
+            kind: "neutral",
+            text: "V této pozici zbývá jediná doložená partie, která už nemá další pokračování. Můžeš zopakovat dosavadní větev nebo vybrat jinou pozici.",
+          });
+        } else if (position.complete)
           finish(
             "Pro tuto pozici už hráč nemá doložené pokračování. Tady větev končí.",
           );
@@ -341,6 +363,16 @@ export default function Home() {
             ? "player"
             : "opponent",
         );
+      }
+      if (singleGame) {
+        setPhase("single");
+        setSelected(null);
+        setPromotion(null);
+        setFeedback({
+          kind: "neutral",
+          text: "V této pozici je doložená už jen jedna partie hráče. Další pokračování by procvičovalo tuto konkrétní partii.",
+        });
+        return;
       }
       if (position.complete)
         setFeedback((previous) =>
@@ -472,6 +504,30 @@ export default function Home() {
     setFeedback({
       kind: "neutral",
       text: "Zadej tahy obou stran a potvrď začátek tréninku.",
+    });
+  }
+  function chooseOtherPosition() {
+    const current = chessFromMoves(movesOf(chessRef.current));
+    editOpening();
+    setDraft(current);
+    setFeedback({
+      kind: "neutral",
+      text: "Současná větev je připravená jako úvod. Vrať tahy tlačítkem Zpět, změň zápis nebo zadej jinou pozici na šachovnici; pak spusť nový trénink.",
+    });
+  }
+  function continueSingleGame() {
+    if (phase !== "single" || !session || !auth) return;
+    roundRef.current.singleGameAcknowledged = true;
+    if (!data?.moves.length) {
+      finish(
+        "Jediná doložená partie zde už nemá pokračování. Větev je dokončená.",
+      );
+      return;
+    }
+    setPhase(chessRef.current.turn() === side ? "player" : "opponent");
+    setFeedback({
+      kind: "neutral",
+      text: "Pokračuješ v jediné doložené partii. V této větvi už na malý vzorek znovu neupozorníme.",
     });
   }
   function start() {
@@ -1031,7 +1087,9 @@ export default function Home() {
                         ? "Klikni na figuru a cílové pole"
                         : phase === "error"
                           ? "Trénink je pozastavený, pozice zachována"
-                          : "Varianta dokončena"}
+                          : phase === "single"
+                            ? "Jediná partie · vyber další postup"
+                            : "Varianta dokončena"}
               </small>
             </div>
           </div>
@@ -1072,13 +1130,15 @@ export default function Home() {
               ? "Nejdřív vyber úvod."
               : phase === "complete"
                 ? "Varianta dokončena."
-                : phase === "loading"
-                  ? "Načítání pozice…"
-                  : phase === "opponent"
-                    ? "Soupeř je na tahu."
-                    : phase === "error"
-                      ? "Trénink pozastaven."
-                      : "Tvůj další tah."}
+                : phase === "single"
+                  ? "Ve větvi zbývá jediná partie."
+                  : phase === "loading"
+                    ? "Načítání pozice…"
+                    : phase === "opponent"
+                      ? "Soupeř je na tahu."
+                      : phase === "error"
+                        ? "Trénink pozastaven."
+                        : "Tvůj další tah."}
           </h2>
           <div
             className={`feedback ${feedback.kind}`}
@@ -1087,6 +1147,57 @@ export default function Home() {
           >
             <p>{feedback.text}</p>
           </div>
+          {phase === "single" && (
+            <div
+              ref={singleNoticeRef}
+              className="single-game-notice"
+              role="alert"
+              aria-label="Jediná partie ve větvi"
+            >
+              <p>
+                Indexace je dokončená. Trénink jsme pozastavili, abys mohl
+                zopakovat dosavadní větev nebo vybrat jinou pozici.
+              </p>
+              <Button
+                className="wide"
+                disabled={!roundRef.current.steps.length || !auth}
+                onClick={() => restart(true)}
+              >
+                <RefreshCw size={17} />
+                Zopakovat dosavadní variantu
+              </Button>
+              {!roundRef.current.steps.length && (
+                <p className="note">
+                  Za zadaným úvodem zatím nejsou žádné tahy k opakování.
+                </p>
+              )}
+              <Button
+                variant="outline"
+                className="wide"
+                disabled={!auth || !roundRef.current.steps.length}
+                onClick={() => restart(false)}
+              >
+                Jiné pokračování ze stejného úvodu
+              </Button>
+              <Button
+                variant="outline"
+                className="wide"
+                onClick={chooseOtherPosition}
+              >
+                Vybrat jinou pozici
+              </Button>
+              <Button
+                variant="ghost"
+                className="wide"
+                disabled={!auth}
+                onClick={continueSingleGame}
+              >
+                {data?.moves.length
+                  ? "Pokračovat v této partii"
+                  : "Dokončit variantu"}
+              </Button>
+            </div>
+          )}
           {(phase === "loading" ||
             ((phase === "player" || phase === "opponent") &&
               data &&
@@ -1200,7 +1311,7 @@ export default function Home() {
               ))}
             </div>
           )}
-          {session && (
+          {session && phase !== "single" && (
             <>
               <Button
                 variant="outline"
@@ -1256,8 +1367,9 @@ export default function Home() {
               <p className="eyebrow">AKTUÁLNÍ POZICE</p>
               <p>{data.opening || "Bez rozpoznaného názvu zahájení"}</p>
               <p className="note">
-                {data.total} partií hráče v této pozici. Četnost odpovědí není
-                hodnocení enginem.
+                {data.total}{" "}
+                {data.total >= 1 && data.total <= 4 ? "partie" : "partií"} hráče
+                v této pozici. Četnost odpovědí není hodnocení enginem.
               </p>
               {!data.complete && (
                 <p className="note">

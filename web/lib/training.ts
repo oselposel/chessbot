@@ -80,3 +80,11 @@ export function judgeMove(
   if (!accepted.some((option) => option.uci === move)) return "rare" as const;
   return "correct" as const;
 }
+
+export function shouldPauseForSingleGame(
+  position: { total: number; complete: boolean },
+  replay: boolean,
+  acknowledged: boolean,
+): boolean {
+  return position.complete && position.total === 1 && !replay && !acknowledged;
+}

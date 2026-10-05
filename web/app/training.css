@@ -239,6 +239,24 @@
 .hint-list span {
   color: #a6b1c0;
 }
+.single-game-notice {
+  margin-top: 18px;
+  border: 1px solid #a87938;
+  border-radius: 10px;
+  background: #30271c;
+  padding: 16px;
+}
+.single-game-notice > p {
+  color: #eed7b1;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.single-game-notice .wide {
+  white-space: normal;
+  height: auto;
+  min-height: 44px;
+}
 .opening-list {
   margin-top: 24px;
   border-top: 1px solid #2b3544;
@@ -338,6 +356,7 @@
     grid-column: 1/-1;
   }
   .repertoire-note,
+  .single-game-notice,
   .opening-list,
   .hint-list {
     grid-column: 1/-1;
