@@ -14,7 +14,8 @@ Osobní trénink šachových zahájení podle repertoáru libovolného hráče n
 ## Hodnocení a souvislé varianty
 
 - **Repertoár:** správná je každá doložená odpověď nad zvoleným prahem (všechny, 5 %, 10 %). Nejčastější tah se zachovává vždy. Podíl se počítá mezi doloženými legálními pokračováními dané pozice.
-- **Konkrétní varianta:** při prvním průchodu se očekává nejčastější odpověď hráče; soupeř se losuje. Doložené alternativy nejsou šachové chyby, ale nechají pozici beze změny.
+- **Konkrétní varianta:** při prvním průchodu se očekává nejčastější odpověď hráče z prvních použitelných dat; cíl se v téže pozici při další indexaci nemění. Soupeř se losuje. Doložené alternativy nejsou šachové chyby, ale nechají pozici beze změny.
+- **Průběžná data:** hrát lze hned po prvním snapshotu s tahy. Během indexace se přijímají všechny doložené odpovědi bez prahu četnosti; neznámé tahy se zatím nepočítají jako chyby. Prázdný průběžný snapshot není konec větve.
 - **Opakování:** očekává přesně zaznamenané odpovědi a stejné soupeřovy tahy, i když původní průchod byl v režimu repertoáru. Používá uložené snapshoty bez síťových požadavků.
 - Úvod se automaticky přehraje. Skóre a limit 4/8/12/16 úplných tahů se počítají až od konce úvodu.
 - Trénink končí dosažením limitu, koncem partie nebo chybějícím doloženým pokračováním. Neznamená to vyčerpání všech možných větví ani procvičení celé partie.
@@ -27,7 +28,7 @@ OAuth Authorization Code s PKCE/S256 a náhodným `state`. Nevyžaduje client se
 
 Token s expirací a rozpracovaný úvod jsou v `sessionStorage` této karty, nikoli v `localStorage`, repozitáři nebo backendu. Skóre, větev a cache pozic jsou pouze v paměti. Odhlášení odstraní lokální token, vymaže cache a pokusí se token odvolat také na Lichessu. Pokud síťové odvolání selže, aplikace upozorní na možnost odebrat autorizaci v nastavení Lichessu.
 
-Explorer může nejprve vrátit neúplné snapshoty během indexace. Aplikace čeká na dokončený stream a neukládá neúplná data jako konec varianty. Požadavky jsou sériové, cache rozlišuje hráče/barvu/pozici a platí 10 minut (nejvýše 500 pozic). Po HTTP 429 se čeká alespoň minutu. Více karet nemá sdílený omezovač; používej jednu relaci.
+Explorer může nejprve vrátit neúplné snapshoty během indexace. Aplikace je průběžně zobrazuje, zatímco stream pokračuje na pozadí. Teprve korektní konec streamu s poslední pozicí ve frontě `0` (nebo bez tohoto údaje) potvrzuje dokončená data; samotná `queuePosition: 0` během otevřeného streamu dokončení neznamená. Při zahrání tahu se starý požadavek zruší a načítá se další pozice. Požadavky jsou sériové, cache rozlišuje hráče/barvu/pozici a platí 10 minut pro dokončená data; průběžná data lze ukázat z cache po dobu 30 sekund, ale vždy se znovu načítají (nejvýše 500 pozic). Po HTTP 429 se čeká alespoň minutu. Více karet nemá sdílený omezovač; používej jednu relaci.
 
 ## Spuštění a nasazení
 

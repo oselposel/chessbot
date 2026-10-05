@@ -64,7 +64,7 @@ test("normalizes Chess960-style castling and filters impossible moves", () => {
   assert.equal(data.moves[0].san, "O-O");
   assert.equal(data.moves.length, 1);
 });
-test("waits for the final NDJSON snapshot and caches positions with isolated player/color keys", async () => {
+test("publishes NDJSON snapshots and caches completed positions with isolated player/color keys", async () => {
   let calls = 0;
   const encoder = new TextEncoder();
   const client = new ExplorerClient("fake-token", async (url, options) => {
@@ -77,7 +77,7 @@ test("waits for the final NDJSON snapshot and caches positions with isolated pla
     const text =
       JSON.stringify({ ...position([]), queuePosition: 4 }) +
       "\n\n" +
-      JSON.stringify(position());
+      JSON.stringify({ ...position(), queuePosition: 0 });
     let cursor = 0;
     return new Response(
       new ReadableStream({
@@ -90,14 +90,20 @@ test("waits for the final NDJSON snapshot and caches positions with isolated pla
     );
   });
   const messages = [];
+  const snapshots = [];
   const data = await client.position(
     "Player",
     "white",
     new Chess(),
     signal(),
     (s) => messages.push(s),
+    (s) => snapshots.push(s),
   );
   assert.equal(data.moves.length, 2);
+  assert.deepEqual(
+    snapshots.map((s) => s.complete),
+    [false, false, true],
+  );
   assert.match(messages[0], /frontě 4/);
   await client.position("PLAYER", "white", new Chess(), signal());
   assert.equal(calls, 1);
@@ -108,7 +114,7 @@ test("waits for the final NDJSON snapshot and caches positions with isolated pla
 });
 test("incomplete indexing, malformed stream and cancellation do not cache false end-of-book", async () => {
   for (const text of [
-    JSON.stringify({ ...position([]), queuePosition: 0 }),
+    JSON.stringify({ ...position([]), queuePosition: 3 }),
     JSON.stringify(position()) + "\ninvalid",
   ]) {
     let calls = 0;
@@ -134,6 +140,151 @@ test("incomplete indexing, malformed stream and cancellation do not cache false 
     /abort/i,
   );
 });
+test("makes moves available before EOF, but queue zero alone cannot complete an empty position", async () => {
+  let stream;
+  let calls = 0;
+  const encoder = new TextEncoder();
+  const client = new ExplorerClient("fake", async () => {
+    calls++;
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          stream = controller;
+        },
+      }),
+    );
+  });
+  const snapshots = [];
+  let notify;
+  let changed = new Promise((resolve) => {
+    notify = resolve;
+  });
+  let completed = false;
+  const result = client
+    .position(
+      "Player",
+      "white",
+      new Chess(),
+      signal(),
+      () => {},
+      (snapshot) => {
+        snapshots.push(snapshot);
+        notify();
+      },
+    )
+    .then((data) => {
+      completed = true;
+      return data;
+    });
+  await new Promise((resolve) => setImmediate(resolve));
+  stream.enqueue(
+    encoder.encode(
+      JSON.stringify({ ...position([]), queuePosition: 0 }) + "\n",
+    ),
+  );
+  await changed;
+  assert.equal(snapshots.at(-1).complete, false);
+  assert.equal(completed, false);
+  changed = new Promise((resolve) => {
+    notify = resolve;
+  });
+  stream.enqueue(
+    encoder.encode(
+      JSON.stringify({ ...position([item("e2e4", 1)]), queuePosition: 0 }) +
+        "\n",
+    ),
+  );
+  await changed;
+  assert.equal(snapshots.at(-1).moves[0].san, "e4");
+  assert.equal(
+    completed,
+    false,
+    "usable snapshot must not wait for indexing completion",
+  );
+  stream.enqueue(
+    encoder.encode(JSON.stringify({ ...position(), queuePosition: 0 }) + "\n"),
+  );
+  stream.close();
+  const data = await result;
+  assert.equal(data.complete, true);
+  assert.equal(data.moves.length, 2);
+  await client.position("Player", "white", new Chess(), signal());
+  assert.equal(calls, 1);
+  const empty = new ExplorerClient(
+    "fake",
+    async () =>
+      new Response(JSON.stringify({ ...position([]), queuePosition: 0 })),
+  );
+  assert.equal(
+    (await empty.position("Player", "white", new Chess(), signal())).complete,
+    true,
+  );
+});
+
+test("aborting after a usable snapshot releases the queue and partial cache always refreshes", async () => {
+  let calls = 0;
+  let ready;
+  const available = new Promise((resolve) => {
+    ready = resolve;
+  });
+  const client = new ExplorerClient("fake", async (_, { signal }) => {
+    calls++;
+    if (calls > 1)
+      return new Response(JSON.stringify({ ...position(), queuePosition: 0 }));
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          signal.addEventListener(
+            "abort",
+            () => controller.error(signal.reason),
+            { once: true },
+          );
+          controller.enqueue(
+            new TextEncoder().encode(
+              JSON.stringify({
+                ...position([item("e2e4", 1)]),
+                queuePosition: 0,
+              }) + "\n",
+            ),
+          );
+        },
+      }),
+    );
+  });
+  const controller = new AbortController();
+  const first = client.position(
+    "Player",
+    "white",
+    new Chess(),
+    controller.signal,
+    () => {},
+    ready,
+  );
+  const rejected = assert.rejects(first, /abort/i);
+  assert.equal((await available).complete, false);
+  controller.abort();
+  await rejected;
+  const snapshots = [];
+  const retry = client.position(
+    "Player",
+    "white",
+    new Chess(),
+    signal(),
+    () => {},
+    (s) => snapshots.push(s),
+  );
+  assert.equal(
+    snapshots[0].moves.length,
+    1,
+    "show recent partial cache immediately",
+  );
+  assert.equal(snapshots[0].complete, false);
+  assert.equal((await retry).moves.length, 2);
+  assert.equal(calls, 2, "never treat partial cache as completed data");
+  await client.position("Other", "white", new Chess(), signal());
+  assert.equal(calls, 3, "cancelled stream must not hold subsequent positions");
+});
+
 test("serializes requests and propagates authentication errors", async () => {
   let active = 0,
     peak = 0;

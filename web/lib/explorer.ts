@@ -11,6 +11,7 @@ export type PositionData = {
   moves: BookMove[];
   total: number;
   opening?: string;
+  complete: boolean;
 };
 type RawPosition = {
   white: number;
@@ -24,7 +25,7 @@ type RawPosition = {
     black: number;
   }[];
   opening?: { eco: string; name: string } | null;
-  queuePosition?: number;
+  queuePosition?: number | null;
   error?: string;
 };
 function count(values: {
@@ -43,6 +44,7 @@ function count(values: {
 export function normalizePosition(
   raw: RawPosition,
   chess: Chess,
+  complete = false,
 ): PositionData {
   if (!raw || !Array.isArray(raw.moves))
     throw new Error("Explorer vrátil neočekávaná data.");
@@ -63,6 +65,7 @@ export function normalizePosition(
   return {
     moves: moves.sort((a, b) => b.count - a.count),
     total: count(raw),
+    complete,
     opening: raw.opening
       ? `${raw.opening.eco} · ${raw.opening.name}`
       : undefined,
@@ -91,13 +94,19 @@ export class ExplorerClient {
     chess: Chess,
     signal: AbortSignal,
     progress: (message: string) => void = () => {},
+    update: (position: PositionData) => void = () => {},
   ): Promise<PositionData> {
     const copy = new Chess(chess.fen());
     const key = `${name.toLowerCase()}|${color}|${positionKey(copy)}`;
     const cached = this.cache.get(key);
     signal.throwIfAborted();
-    if (cached && Date.now() - cached.at < 600_000)
-      return Promise.resolve(cached.value);
+    if (
+      cached &&
+      Date.now() - cached.at < (cached.value.complete ? 600_000 : 30_000)
+    ) {
+      update(cached.value);
+      if (cached.value.complete) return Promise.resolve(cached.value);
+    }
     const task = this.queue
       .catch(() => {})
       .then(async () => {
@@ -153,13 +162,25 @@ export class ExplorerClient {
         const line = (text: string) => {
           if (!text.trim()) return;
           const raw = JSON.parse(text) as RawPosition;
-          if (raw.error) throw new Error("Explorer přerušil načítání pozice.");
-          normalizePosition(raw, copy); // Validate every snapshot, but only use the final one.
+          if (!raw || raw.error)
+            throw new Error("Explorer přerušil načítání pozice.");
+          if (
+            raw.queuePosition != null &&
+            (!Number.isSafeInteger(raw.queuePosition) || raw.queuePosition < 0)
+          )
+            throw new Error("Explorer vrátil neplatnou pozici ve frontě.");
+          const snapshot = normalizePosition(raw, copy);
           last = raw;
+          // A queue position of zero is not a completion signal. Publish data now,
+          // but only a clean EOF makes the snapshot final (and allows end-of-book).
+          if (this.cache.size >= 500 && !this.cache.has(key))
+            this.cache.delete(this.cache.keys().next().value!);
+          this.cache.set(key, { at: Date.now(), value: snapshot });
+          update(snapshot);
           progress(
-            raw.queuePosition !== undefined
+            (raw.queuePosition || 0) > 0
               ? `Indexování hráče · pozice ve frontě ${raw.queuePosition}`
-              : `Načítání pozice · ${count(raw)} partií`,
+              : `Data se doplňují na pozadí · ${count(raw)} partií`,
           );
         };
         try {
@@ -184,14 +205,16 @@ export class ExplorerClient {
           reader.releaseLock();
         }
         signal.throwIfAborted();
-        if (!last || last.queuePosition !== undefined)
+        if (!last || (last.queuePosition || 0) > 0)
           throw new Error(
             "Indexování hráče není dokončené. Zkus za chvíli obnovit pozici.",
           );
-        const value = normalizePosition(last, copy);
-        if (this.cache.size >= 500)
+        const value = normalizePosition(last, copy, true);
+        if (this.cache.size >= 500 && !this.cache.has(key))
           this.cache.delete(this.cache.keys().next().value!);
         this.cache.set(key, { at: Date.now(), value });
+        update(value);
+        progress(`Pozice načtena · ${value.total} partií`);
         return value;
       });
     this.queue = task;

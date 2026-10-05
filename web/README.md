@@ -29,6 +29,9 @@ npm run build:pages
 $env:PLAYWRIGHT_MODULE = 'ABSOLUTNI_CESTA_K_PLAYWRIGHT/index.mjs'
 $env:APP_ORIGIN = 'http://127.0.0.1:5174/chessbot'
 node tests/browser.qa.mjs
+node tests/streaming.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
+
+Streaming QA používá skutečné otevřené `ReadableStream` s mockovanými daty. Ověřuje hraní před koncem indexace, průběžné nápovědy, stabilní cíl větve, bezpečné hodnocení neznámých tahů a uvolnění fronty při přechodu na další pozici.

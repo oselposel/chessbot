@@ -168,7 +168,9 @@ export default function Home() {
       : roundRef.current.replay
         ? roundRef.current.steps.length
         : session?.plies || Number(depth) * 2;
-  const accepted = relevantMoves(data?.moves || [], session?.minimumShare || 0);
+  const accepted = data?.complete
+    ? relevantMoves(data.moves, session?.minimumShare || 0)
+    : data?.moves || [];
   const latest = chessRef.current.history({ verbose: true }).at(-1);
   function sync() {
     setFen(chessRef.current.fen());
@@ -266,7 +268,7 @@ export default function Home() {
     // Check periodically instead of overflowing the browser's maximum timer duration.
     const timer = setInterval(() => {
       if (Date.now() >= auth.expiresAt) {
-        controllerRef.current?.abort();
+        stopRequest();
         clearAuth();
         setAuth(null);
         clientRef.current = null;
@@ -279,6 +281,11 @@ export default function Home() {
   function finish(reason: string) {
     setPhase("complete");
     setFeedback({ kind: "success", text: reason });
+  }
+  function stopRequest() {
+    const controller = controllerRef.current;
+    controllerRef.current = null;
+    controller?.abort();
   }
   useEffect(() => {
     if (phase !== "loading" || !session || !auth || !clientRef.current) return;
@@ -305,14 +312,52 @@ export default function Home() {
       120_000,
     );
     let alive = true;
+    const isCurrent = () =>
+      alive &&
+      controllerRef.current === controller &&
+      chessRef.current.fen() === fen;
     setError("");
     setLoadMessage("Načítání aktuální pozice…");
     const saved = round.replay ? round.steps[round.cursor] : undefined;
+    let frozenTarget: string | null | undefined;
+    const receive = (position: PositionData) => {
+      if (!isCurrent()) return;
+      setData(position);
+      if (!position.moves.length) {
+        if (position.complete)
+          finish(
+            "Pro tuto pozici už hráč nemá doložené pokračování. Tady větev končí.",
+          );
+        return;
+      }
+      if (frozenTarget === undefined) {
+        const choices = relevantMoves(position.moves, session.minimumShare);
+        frozenTarget =
+          saved?.chosen.uci ||
+          (session.policy === "line" ? choices[0]?.uci || null : null);
+        setTarget(frozenTarget);
+        setPhase(
+          chessRef.current.turn() === (session.color === "white" ? "w" : "b")
+            ? "player"
+            : "opponent",
+        );
+      }
+      if (position.complete)
+        setFeedback((previous) =>
+          previous.text.startsWith("Data se ještě doplňují")
+            ? {
+                kind: "neutral",
+                text: "Indexování je dokončené. Zkus svou odpověď znovu nebo použij nápovědu.",
+              }
+            : previous,
+        );
+    };
     const fetchData = saved
       ? Promise.resolve({
           moves: saved.options,
           total: saved.total,
           opening: saved.opening,
+          complete: true,
         })
       : clientRef.current.position(
           session.name,
@@ -320,32 +365,14 @@ export default function Home() {
           chessRef.current,
           controller.signal,
           (message) => {
-            if (alive) setLoadMessage(message);
+            if (isCurrent()) setLoadMessage(message);
           },
+          receive,
         );
     fetchData
-      .then((position) => {
-        if (!alive) return;
-        setData(position);
-        if (!position.moves.length) {
-          finish(
-            "Pro tuto pozici už hráč nemá doložené pokračování. Tady větev končí.",
-          );
-          return;
-        }
-        const choices = relevantMoves(position.moves, session.minimumShare);
-        setTarget(
-          saved?.chosen.uci ||
-            (session.policy === "line" ? choices[0]?.uci || null : null),
-        );
-        setPhase(
-          chessRef.current.turn() === (session.color === "white" ? "w" : "b")
-            ? "player"
-            : "opponent",
-        );
-      })
+      .then(receive)
       .catch((e) => {
-        if (!alive) return;
+        if (!isCurrent()) return;
         if (e instanceof AuthenticationError) {
           clearAuth();
           setAuth(null);
@@ -372,10 +399,13 @@ export default function Home() {
       clearTimeout(timeout);
       controller.abort();
     };
+    // Switching from loading to a playable phase must keep the same stream alive.
+    // A new FEN/session or explicit retry starts a new request instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, fen, session, auth, generation]);
+  }, [fen, session, auth, generation]);
   function commit(move: BookMove) {
     if (!data || !session) return;
+    stopRequest();
     if (!roundRef.current.replay)
       roundRef.current.steps.push({
         fen,
@@ -411,8 +441,10 @@ export default function Home() {
       });
     }, 550);
     return () => clearTimeout(timer);
+    // Keep the opponent's delay anchored to the first usable snapshot, not
+    // restarted by every background indexing update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, fen, data, session]);
+  }, [phase, fen, session]);
   function setDraft(chess: Chess) {
     chessRef.current = chess;
     setDraftSeed(movesOf(chess));
@@ -428,7 +460,7 @@ export default function Home() {
     }
   }
   function editOpening() {
-    controllerRef.current?.abort();
+    stopRequest();
     setSession(null);
     roundRef.current = emptyRound();
     setData(null);
@@ -478,7 +510,7 @@ export default function Home() {
   }
   function restart(replay: boolean) {
     if (!session || (replay && !roundRef.current.steps.length)) return;
-    controllerRef.current?.abort();
+    stopRequest();
     roundRef.current = replay
       ? { ...roundRef.current, cursor: 0, replay: true, errors: [] }
       : emptyRound();
@@ -508,6 +540,23 @@ export default function Home() {
       return { accepted: false, error: "Nelegální tah." };
     }
     const verdict = judgeMove(uci(move), data.moves, accepted, target);
+    if (verdict !== "correct" && roundRef.current.replay) {
+      setStats((s) => ({ ...s, alternatives: s.alternatives + 1 }));
+      setFeedback({
+        kind: "neutral",
+        text: `${move.san} není tah zaznamenané větve. Nehodnotíme jej jako šachovou chybu; zkus cílový tah nebo nápovědu.`,
+      });
+      setSelected(null);
+      return { accepted: false, error: "alternative" };
+    }
+    if (verdict === "unknown" && !data.complete) {
+      setFeedback({
+        kind: "neutral",
+        text: `Data se ještě doplňují. Tah ${move.san} zatím není doložený, proto jej nepočítáme jako chybu. Zkus jej později nebo zahraj známou odpověď.`,
+      });
+      setSelected(null);
+      return { accepted: false, error: "pending" };
+    }
     if (verdict !== "correct") {
       if (verdict === "alternative" || verdict === "rare") {
         setStats((s) => ({ ...s, alternatives: s.alternatives + 1 }));
@@ -588,7 +637,7 @@ export default function Home() {
   async function signOut() {
     if (!auth) return;
     const previous = auth;
-    controllerRef.current?.abort();
+    stopRequest();
     setAuth(null);
     clientRef.current?.clear();
     clientRef.current = null;
@@ -807,7 +856,7 @@ export default function Home() {
               />
               <p className="note">
                 {policy === "line"
-                  ? "Při prvním průchodu očekáváme nejčastější tah hráče. Soupeřova větev se losuje; po dokončení ji můžeš přesně zopakovat."
+                  ? "Očekáváme nejčastější tah z prvních dostupných dat; cíl v téže pozici zůstává stejný. Soupeřova větev se losuje; po dokončení ji můžeš přesně zopakovat."
                   : "Správná je každá doložená odpověď nad zvoleným prahem četnosti."}
               </p>
               <label htmlFor="threshold">Minimální četnost odpovědi</label>
@@ -1038,7 +1087,10 @@ export default function Home() {
           >
             <p>{feedback.text}</p>
           </div>
-          {phase === "loading" && (
+          {(phase === "loading" ||
+            ((phase === "player" || phase === "opponent") &&
+              data &&
+              !data.complete)) && (
             <div className="loading-info" role="status">
               <p>
                 <LoaderCircle className="spin inline-icon" size={16} />
@@ -1207,6 +1259,14 @@ export default function Home() {
                 {data.total} partií hráče v této pozici. Četnost odpovědí není
                 hodnocení enginem.
               </p>
+              {!data.complete && (
+                <p className="note">
+                  Průběžná data: doložené tahy můžeš hrát bez čekání na
+                  dokončení. Během indexace přijímáme všechny doložené tahy;
+                  neznámé zatím nepočítáme jako chyby. Cíl konkrétní varianty
+                  zůstává podle prvních dostupných dat.
+                </p>
+              )}
             </div>
           )}
           <div className="repertoire-note">

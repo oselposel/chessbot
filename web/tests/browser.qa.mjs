@@ -29,15 +29,13 @@ for (const [line, amount] of [
     const move = chess.move(token);
     if (!graph.has(key)) graph.set(key, new Map());
     const existing = graph.get(key).get(uci(move));
-    graph
-      .get(key)
-      .set(uci(move), {
-        uci: uci(move),
-        san: move.san,
-        white: amount + (existing?.white || 0),
-        draws: 0,
-        black: 0,
-      });
+    graph.get(key).set(uci(move), {
+      uci: uci(move),
+      san: move.san,
+      white: amount + (existing?.white || 0),
+      draws: 0,
+      black: 0,
+    });
   }
 }
 let tokenExchanges = 0,
@@ -107,6 +105,7 @@ await context.route("https://explorer.lichess.org/player?*", async (route) => {
   const key = positionKey(new Chess(url.searchParams.get("fen")));
   const moves = [...(graph.get(key)?.values() || [])];
   const data = {
+    queuePosition: 0,
     moves,
     white: moves.reduce((n, m) => n + m.white, 0),
     draws: 0,
@@ -210,7 +209,7 @@ try {
   await move("f1", "c4");
   assert.match(
     await page.locator(".feedback").innerText(),
-    /platná alternativa/,
+    /není tah zaznamenané větve/,
   );
   assert.match(await page.locator(".stats").innerText(), /0\s+Mimo repertoár/);
   await move("f1", "b5");
