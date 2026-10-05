@@ -253,7 +253,10 @@ try {
       await click("Pokračovat v této partii");
       await player();
       await click("Nápověda");
-      assert.match(await page.locator(".hint-list").innerText(), /Bc4 · cíl/);
+      assert.match(
+        await page.locator(".hint-list").innerText(),
+        /Bc4 · doporučení/,
+      );
       await move("f1", "c4");
       await complete();
     } else {

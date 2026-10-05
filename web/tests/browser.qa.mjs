@@ -20,7 +20,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 const graph = new Map();
 for (const [line, amount] of [
   ["e4 e5 Nf3 Nc6 Bc4 Bc5 O-O", 60],
-  ["e4 e5 Nf3 Nc6 Bb5 a6 Ba4", 40],
+  ["e4 e5 Nf3 Nc6 Bb5 a6 Ba4", 50],
   ["e4 c5 Nf3 d6 d4 cxd4 Nxd4", 30],
 ]) {
   const chess = new Chess();
@@ -199,6 +199,7 @@ try {
   assert.match(await page.locator(".move-history").innerText(), /Bb5.*a6/s);
   await move("b5", "a4");
   await complete();
+  assert.match(await page.locator(".last-answer").innerText(), /Ba4 · 100 %/);
   const originalHistory = await page.locator(".move-history").innerText();
   const firstRequests = requests;
   assert.match(await page.locator(".round-summary").innerText(), /a3/);
@@ -241,7 +242,7 @@ try {
     await page.locator(".move-history").innerText(),
     /e4.*e5.*Nf3.*Nc6.*Bc4.*Bc5.*O-O/s,
   );
-  // A fixed-line round guides the principal answer without calling alternatives mistakes.
+  // Principal-move mode also accepts a close second choice on its first pass.
   await edit();
   await choose("policy", "Konkrétní varianta · hlavní tah");
   await page
@@ -249,12 +250,22 @@ try {
     .click();
   await waitPlayer();
   await move("f1", "b5");
-  assert.match(
-    await page.locator(".feedback").innerText(),
-    /platná alternativa/,
-  );
+  await waitPlayer();
+  assert.match(await page.locator(".move-history").innerText(), /Bb5.*a6/s);
+  await move("b5", "a4");
+  await complete();
+  await page
+    .getByRole("button", {
+      name: "Jiné pokračování ze stejného úvodu",
+      exact: true,
+    })
+    .click();
+  await waitPlayer();
   await page.getByRole("button", { name: "Nápověda", exact: true }).click();
-  assert.match(await page.locator(".hint-list").innerText(), /Bc4 · cíl/);
+  assert.match(
+    await page.locator(".hint-list").innerText(),
+    /Bc4 · doporučení/,
+  );
   await move("f1", "c4");
   await waitPlayer();
   await move("e1", "g1");
@@ -319,7 +330,7 @@ try {
   );
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log(
-    "PASS: PKCE OAuth roundtrip, preserved draft, board editor, on-demand final snapshots, multiple answers, wrong rollback, exact replay without requests, same-seed branching, fixed-line alternatives, castling, black orientation, retry, mobile layout and logout.",
+    "PASS: PKCE OAuth roundtrip, preserved draft, board editor, on-demand final snapshots, close second answers in both modes, wrong rollback, exact replay without requests, same-seed branching, castling, black orientation, retry, mobile layout and logout.",
   );
 } catch (error) {
   console.log("QA failed at", page.url().split("?")[0]);

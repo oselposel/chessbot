@@ -42,6 +42,7 @@ import {
   openingNotation,
   parseOpening,
   relevantMoves,
+  formatMovePercentage,
   shouldPauseForSingleGame,
   type TrainingConfig,
   type TrainingStep,
@@ -128,7 +129,6 @@ export default function Home() {
   const [depth, setDepth] = useState("8");
   const [mode, setMode] = useState("weighted");
   const [policy, setPolicy] = useState("repertoire");
-  const [minimumShare, setMinimumShare] = useState("0");
   const [openingText, setOpeningText] = useState("");
   const [draftSeed, setDraftSeed] = useState<string[]>([]);
   const [session, setSession] = useState<TrainingConfig | null>(null);
@@ -138,6 +138,11 @@ export default function Home() {
   const [loadMessage, setLoadMessage] = useState("");
   const [error, setError] = useState("");
   const [hint, setHint] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState<{
+    move: BookMove;
+    total: number;
+    complete: boolean;
+  } | null>(null);
   const [stats, setStats] = useState({
     correct: 0,
     mistakes: 0,
@@ -173,9 +178,7 @@ export default function Home() {
       : roundRef.current.replay
         ? roundRef.current.steps.length
         : session?.plies || Number(depth) * 2;
-  const accepted = data?.complete
-    ? relevantMoves(data.moves, session?.minimumShare || 0)
-    : data?.moves || [];
+  const accepted = relevantMoves(data?.moves || []);
   const latest = chessRef.current.history({ verbose: true }).at(-1);
   function sync() {
     setFen(chessRef.current.fen());
@@ -194,8 +197,6 @@ export default function Home() {
         if (["weighted", "uniform"].includes(draft.mode)) setMode(draft.mode);
         if (["repertoire", "line"].includes(draft.policy))
           setPolicy(draft.policy);
-        if (["0", "0.05", "0.1"].includes(draft.minimumShare))
-          setMinimumShare(draft.minimumShare);
         const chess = chessFromMoves(
           Array.isArray(draft.seed) ? draft.seed : [],
         );
@@ -251,23 +252,12 @@ export default function Home() {
           depth,
           mode,
           policy,
-          minimumShare,
           seed: draftSeed,
           text: openingText,
         }),
       );
     } catch {}
-  }, [
-    ready,
-    username,
-    color,
-    depth,
-    mode,
-    policy,
-    minimumShare,
-    draftSeed,
-    openingText,
-  ]);
+  }, [ready, username, color, depth, mode, policy, draftSeed, openingText]);
   useEffect(() => {
     if (!auth) return;
     // Check periodically instead of overflowing the browser's maximum timer duration.
@@ -328,7 +318,7 @@ export default function Home() {
     setError("");
     setLoadMessage("Načítání aktuální pozice…");
     const saved = round.replay ? round.steps[round.cursor] : undefined;
-    let frozenTarget: string | null | undefined;
+    let positionReady = false;
     const receive = (position: PositionData) => {
       if (!isCurrent()) return;
       setData(position);
@@ -352,12 +342,13 @@ export default function Home() {
           );
         return;
       }
-      if (frozenTarget === undefined) {
-        const choices = relevantMoves(position.moves, session.minimumShare);
-        frozenTarget =
-          saved?.chosen.uci ||
-          (session.policy === "line" ? choices[0]?.uci || null : null);
-        setTarget(frozenTarget);
+      const choices = relevantMoves(position.moves);
+      setTarget(
+        saved?.chosen.uci ||
+          (session.policy === "line" ? choices[0]?.uci || null : null),
+      );
+      if (!positionReady) {
+        positionReady = true;
         setPhase(
           chessRef.current.turn() === (session.color === "white" ? "w" : "b")
             ? "player"
@@ -469,7 +460,7 @@ export default function Home() {
       commit(move);
       setFeedback({
         kind: "neutral",
-        text: `Soupeř zahrál ${move.san}. Jak odpoví ${session.name}?`,
+        text: `Soupeř zahrál ${move.san} (${formatMovePercentage(move, data.total)} pokračování v načtených partiích). Jak odpoví ${session.name}?`,
       });
     }, 550);
     return () => clearTimeout(timer);
@@ -493,6 +484,7 @@ export default function Home() {
   }
   function editOpening() {
     stopRequest();
+    setLastAnswer(null);
     setSession(null);
     roundRef.current = emptyRound();
     setData(null);
@@ -544,13 +536,13 @@ export default function Home() {
       const chess = parseOpening(openingText);
       setDraft(chess);
       roundRef.current = emptyRound();
+      setLastAnswer(null);
       setSession({
         name,
         color,
         seed: movesOf(chess),
         plies: Number(depth) * 2,
         policy: policy as TrainingConfig["policy"],
-        minimumShare: Number(minimumShare),
         uniform: mode === "uniform",
       });
       setStats({ correct: 0, mistakes: 0, hints: 0, alternatives: 0 });
@@ -567,6 +559,7 @@ export default function Home() {
   function restart(replay: boolean) {
     if (!session || (replay && !roundRef.current.steps.length)) return;
     stopRequest();
+    setLastAnswer(null);
     roundRef.current = replay
       ? { ...roundRef.current, cursor: 0, replay: true, errors: [] }
       : emptyRound();
@@ -595,7 +588,12 @@ export default function Home() {
       setSelected(null);
       return { accepted: false, error: "Nelegální tah." };
     }
-    const verdict = judgeMove(uci(move), data.moves, accepted, target);
+    const verdict = judgeMove(
+      uci(move),
+      data.moves,
+      accepted,
+      roundRef.current.replay ? target : null,
+    );
     if (verdict !== "correct" && roundRef.current.replay) {
       setStats((s) => ({ ...s, alternatives: s.alternatives + 1 }));
       setFeedback({
@@ -605,10 +603,17 @@ export default function Home() {
       setSelected(null);
       return { accepted: false, error: "alternative" };
     }
-    if (verdict === "unknown" && !data.complete) {
+    if ((verdict === "unknown" || verdict === "rare") && !data.complete) {
       setFeedback({
         kind: "neutral",
-        text: `Data se ještě doplňují. Tah ${move.san} zatím není doložený, proto jej nepočítáme jako chybu. Zkus jej později nebo zahraj známou odpověď.`,
+        text: `Data se ještě doplňují. Tah ${move.san} zatím ${
+          verdict === "unknown"
+            ? "není doložený"
+            : `nesplňuje toleranci (${formatMovePercentage(
+                data.moves.find((m) => m.uci === uci(move))!,
+                data.total,
+              )} případů)`
+        }, proto jej nepočítáme jako chybu. Zkus jej později nebo zahraj aktuálně uznávanou odpověď.`,
       });
       setSelected(null);
       return { accepted: false, error: "pending" };
@@ -621,7 +626,10 @@ export default function Home() {
           text:
             verdict === "alternative"
               ? `${move.san} je platná alternativa v repertoáru, ale ne tah této konkrétní větve. Zkus cílový tah nebo nápovědu.`
-              : `${move.san} je doložený, ale pod zvoleným prahem četnosti. Není to šachová chyba; procvičujeme běžnější odpovědi.`,
+              : `${move.san} hráč zahrál v ${formatMovePercentage(
+                  data.moves.find((m) => m.uci === uci(move))!,
+                  data.total,
+                )} případů. Tento tah je mimo toleranci top dvou, proto jej neuznáváme. Nemusí to být šachová chyba.`,
         });
       } else {
         setStats((s) => ({ ...s, mistakes: s.mistakes + 1 }));
@@ -637,10 +645,11 @@ export default function Home() {
       return { accepted: false, error: verdict };
     }
     const known = data.moves.find((m) => m.uci === uci(move))!;
+    setLastAnswer({ move: known, total: data.total, complete: data.complete });
     setStats((s) => ({ ...s, correct: s.correct + 1 }));
     setFeedback({
       kind: "success",
-      text: `Správně, ${known.san}! Doloženo ${known.count}× v této pozici.`,
+      text: `Správně, ${known.san}! Hráč jej zahrál v ${formatMovePercentage(known, data.total)} případů (${known.count} z ${data.total} partií v této pozici).${!data.complete ? " Jde zatím o průběžná data." : ""}`,
     });
     commit(known);
     return { accepted: true, move: known.san };
@@ -912,20 +921,13 @@ export default function Home() {
               />
               <p className="note">
                 {policy === "line"
-                  ? "Očekáváme nejčastější tah z prvních dostupných dat; cíl v téže pozici zůstává stejný. Soupeřova větev se losuje; po dokončení ji můžeš přesně zopakovat."
-                  : "Správná je každá doložená odpověď nad zvoleným prahem četnosti."}
+                  ? "Doporučujeme nejhranější tah; blízká druhá odpověď se také uznává. Doporučení se během indexace může aktualizovat. Po dokončení můžeš přesně zopakovat skutečně zahranou větev."
+                  : "Uznáváme nejhranější tah a druhý, pokud má alespoň 80 % četnosti prvního. Stejné četnosti posuzujeme stejně."}
               </p>
-              <label htmlFor="threshold">Minimální četnost odpovědi</label>
-              <Choice
-                id="threshold"
-                value={minimumShare}
-                onChange={setMinimumShare}
-                options={[
-                  ["0", "Všechny doložené tahy"],
-                  ["0.05", "Alespoň 5 %"],
-                  ["0.1", "Alespoň 10 %"],
-                ]}
-              />
+              <p className="note">
+                Tolerance druhého tahu: alespoň 80 % četnosti prvního. Například
+                45 % / 40 % uznáme obojí; 45 % / 30 % jen první.
+              </p>
               <label htmlFor="depth">Délka pokračování za úvodem</label>
               <Choice
                 id="depth"
@@ -1147,6 +1149,18 @@ export default function Home() {
           >
             <p>{feedback.text}</p>
           </div>
+          {lastAnswer && (
+            <p className="note last-answer">
+              Poslední uznaná odpověď:{" "}
+              <strong>
+                {lastAnswer.move.san} ·{" "}
+                {formatMovePercentage(lastAnswer.move, lastAnswer.total)}
+              </strong>{" "}
+              ({lastAnswer.move.count} z {lastAnswer.total} partií v předchozí
+              pozici).
+              {!lastAnswer.complete ? " Průběžný vzorek." : ""}
+            </p>
+          )}
           {phase === "single" && (
             <div
               ref={singleNoticeRef}
@@ -1286,26 +1300,32 @@ export default function Home() {
             <div className="hint-list">
               <p>
                 {target
-                  ? "Cílový tah této větve a doložené alternativy:"
+                  ? roundRef.current.replay
+                    ? "Zaznamenaný tah této větve a alternativy:"
+                    : "Doporučený hlavní tah a další pokračování:"
                   : "Hráč v této pozici používá:"}
               </p>
               {data.moves.map((move) => (
                 <div key={move.uci}>
                   <strong>
                     {move.san}
-                    {target === move.uci ? " · cíl" : ""}
+                    {target === move.uci
+                      ? roundRef.current.replay
+                        ? " · cíl"
+                        : " · doporučení"
+                      : ""}
                   </strong>
                   <span>
-                    {move.count}× ·{" "}
-                    {Math.round(
-                      (move.count /
-                        data.moves.reduce((n, m) => n + m.count, 0)) *
-                        100,
-                    )}{" "}
-                    %
-                    {!accepted.some((m) => m.uci === move.uci)
-                      ? " · vzácný"
-                      : ""}
+                    {formatMovePercentage(move, data.total)} · {move.count} z{" "}
+                    {data.total}
+                    {roundRef.current.replay
+                      ? target === move.uci
+                        ? " · zaznamenaný tah"
+                        : " · jiná větev"
+                      : accepted.some((m) => m.uci === move.uci)
+                        ? " · uznáváme"
+                        : " · mimo toleranci"}
+                    {!data.complete ? " · průběžně" : ""}
                   </span>
                 </div>
               ))}
@@ -1374,9 +1394,9 @@ export default function Home() {
               {!data.complete && (
                 <p className="note">
                   Průběžná data: doložené tahy můžeš hrát bez čekání na
-                  dokončení. Během indexace přijímáme všechny doložené tahy;
-                  neznámé zatím nepočítáme jako chyby. Cíl konkrétní varianty
-                  zůstává podle prvních dostupných dat.
+                  dokončení. Pořadí tahů i procenta se ještě mohou změnit. Tah
+                  mimo aktuální toleranci nebo neznámý tah zatím nepočítáme jako
+                  chybu.
                 </p>
               )}
             </div>

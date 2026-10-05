@@ -7,6 +7,7 @@ import {
   openingNotation,
   chessFromMoves,
   relevantMoves,
+  formatMovePercentage,
   judgeMove,
   shouldPauseForSingleGame,
 } from "../lib/training.ts";
@@ -44,16 +45,56 @@ test("SAN/UCI prefixes produce the same legal position, support move numbers and
   assert.throws(() => parseOpening("1. e4 e5 2. e4"), /není.*legální/);
   assert.equal(parseOpening("").history().length, 0);
 });
-test("accepts multiple relevant alternatives; fixed-line alternatives are not errors", () => {
+test("always accepts the leader and only a runner-up within 80%; replay remains exact", () => {
   const options = normalizePosition(position(), new Chess()).moves;
-  assert.equal(
-    judgeMove("d2d4", options, relevantMoves(options, 0)),
-    "correct",
-  );
+  assert.equal(judgeMove("e2e4", options, relevantMoves(options)), "correct");
   assert.equal(judgeMove("d2d4", options, options, "e2e4"), "alternative");
   assert.equal(judgeMove("a2a3", options, options), "unknown");
-  assert.equal(judgeMove("d2d4", options, relevantMoves(options, 0.5)), "rare");
-  assert.equal(relevantMoves(options, 0.9)[0].uci, "e2e4");
+  assert.equal(judgeMove("d2d4", options, relevantMoves(options)), "rare");
+  const close = options.map((m) => ({
+    ...m,
+    count: m.uci === "d2d4" ? 50 : 60,
+  }));
+  assert.equal(judgeMove("d2d4", close, relevantMoves(close)), "correct");
+});
+
+test("ranking handles exact boundary, third-place exclusion, ties, unsorted input and fragmented repertoires", () => {
+  const moves = (counts) =>
+    counts.map((count, i) => ({ uci: String(i), san: String(i), count }));
+  const accepted = (counts) => relevantMoves(moves(counts)).map((m) => m.uci);
+  assert.deepEqual(accepted([45, 40, 15]), ["0", "1"]);
+  assert.deepEqual(accepted([45, 30, 25]), ["0"]);
+  assert.deepEqual(accepted([10000, 8000, 7999]), ["0", "1"]);
+  assert.deepEqual(accepted([10000, 7999]), ["0"]);
+  assert.deepEqual(accepted([50, 45, 44]), ["0", "1"]);
+  assert.deepEqual(accepted([45, 36, 36]), ["0", "1", "2"]);
+  assert.deepEqual(accepted([50, 50, 45]), ["0", "1"]);
+  assert.deepEqual(accepted([19, 18, 17, 16, 15, 15]), ["0", "1"]);
+  assert.deepEqual(accepted([0, 0]), []);
+  assert.deepEqual(accepted([1]), ["0"]);
+  const unsorted = moves([40, 15, 45]);
+  assert.deepEqual(
+    relevantMoves(unsorted).map((m) => m.uci),
+    ["2", "0"],
+  );
+  assert.deepEqual(
+    unsorted.map((m) => m.count),
+    [40, 15, 45],
+  );
+});
+
+test("percentages use the full position total, not the sum of displayed moves", () => {
+  const options = normalizePosition(
+    position([item("e2e4", 45), item("d2d4", 40)]),
+    new Chess(),
+  ).moves;
+  assert.equal(formatMovePercentage(options[0], 100), "45 %");
+  assert.equal(formatMovePercentage(options[1], 100), "40 %");
+  assert.equal(
+    formatMovePercentage({ ...options[0], count: 25 }, 1000),
+    "2,5 %",
+  );
+  assert.equal(formatMovePercentage(options[0], 0), "0 %");
 });
 test("single-game notice uses completed game counts, not the number of moves, and skips replay/acknowledged rounds", () => {
   const single = { total: 1, complete: true };

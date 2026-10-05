@@ -8,20 +8,21 @@ Osobní trénink šachových zahájení podle repertoáru libovolného hráče n
 
 1. Přihlas se přes Lichess svým účtem. Nickname hráče, jehož repertoár kopíruješ, může být jiný.
 2. Zvol barvu a zadej úvodní tahy zápisem nebo na šachovnici za obě strany. Mezinárodní SAN: `1. e4 e5 2. Nf3 Nc6`; UCI: `e2e4 e7e5 g1f3 b8c6`. Prázdný úvod začíná ze základní pozice.
-3. Zvol režim, četnost, délku pokračování a způsob losování soupeře. Pak spusť trénink.
+3. Zvol režim, délku pokračování a způsob losování soupeře. Pak spusť trénink.
 4. Po dokončení zopakuj přesně stejnou větev, nebo vylosuj jiné pokračování ze stejného úvodu.
 
 ## Hodnocení a souvislé varianty
 
-- **Repertoár:** správná je každá doložená odpověď nad zvoleným prahem (všechny, 5 %, 10 %). Nejčastější tah se zachovává vždy. Podíl se počítá mezi doloženými legálními pokračováními dané pozice.
-- **Konkrétní varianta:** při prvním průchodu se očekává nejčastější odpověď hráče z prvních použitelných dat; cíl se v téže pozici při další indexaci nemění. Soupeř se losuje. Doložené alternativy nejsou šachové chyby, ale nechají pozici beze změny.
-- **Průběžná data:** hrát lze hned po prvním snapshotu s tahy. Během indexace se přijímají všechny doložené odpovědi bez prahu četnosti; neznámé tahy se zatím nepočítají jako chyby. Prázdný průběžný snapshot není konec větve.
+- **Repertoár:** vždy se uznává nejhranější tah. Druhý se uznává také, pokud dosahuje alespoň 80 % četnosti prvního (poměr počtů, ne rozdíl 20 procentních bodů). Například 45 % / 40 % uznáme obojí, 45 % / 30 % jen první. Další tahy se neuznávají kromě shodné četnosti na uznávaném pořadí; vazby se nerozhodují podle pořadí odpovědi API. Není zde absolutní minimum 20 % ani výběr starých prahů.
+- **Procenta:** četnost tahu se dělí celkovým počtem partií hráče v dané pozici z Exploreru, ne pouze součtem zobrazených tahů. Podíl a počty ukazuje nápověda i hodnocení odpovědi. Zaokrouhlení zobrazených procent nemění uznávání; rozhodují skutečné počty.
+- **Konkrétní varianta:** při prvním průchodu se doporučuje nejhranější odpověď a blízká druhá volba se také uznává. Doporučení se může při indexaci aktualizovat. Soupeř se losuje; po dokončení se přesně opakuje skutečně zahraná větev. Doložený tah mimo toleranci není označován za šachovou chybu, ale nepokračuje se jím.
+- **Průběžná data:** hrát lze hned po prvním snapshotu s tahy a hodnotí se aktuální top dvě s tolerancí. Podíly i pořadí se mohou ještě změnit; tah mimo aktuální toleranci ani neznámý tah se zatím nepočítá jako chyba. Prázdný průběžný snapshot není konec větve.
 - **Jediná partie:** když dokončená indexace potvrdí v pozici právě jednu partii (ne pouze jeden možný tah), trénink se pozastaví i na tahu soupeře. Můžeš zopakovat dosavadní větev, vylosovat jiné pokračování ze stejného úvodu, vybrat jinou pozici v editoru nebo pokračovat v této jedné partii. Editor převezme aktuální větev; pomocí „Zpět“ se můžeš vrátit k dřívější pozici. Potvrzení pokračování platí do konce daného průchodu; přesné opakování upozornění nepřerušuje. Pokud za úvodem ještě nejsou zahrané tahy, opakování je nedostupné.
 - **Opakování:** očekává přesně zaznamenané odpovědi a stejné soupeřovy tahy, i když původní průchod byl v režimu repertoáru. Používá uložené snapshoty bez síťových požadavků.
 - Úvod se automaticky přehraje. Skóre a limit 4/8/12/16 úplných tahů se počítají až od konce úvodu.
 - Trénink končí dosažením limitu, koncem partie nebo chybějícím doloženým pokračováním. Neznamená to vyčerpání všech možných větví ani procvičení celé partie.
 - Síťová chyba, timeout a nedokončená indexace trénink pozastaví. Tlačítko „Obnovit pozici“ pokračuje ze stejného místa; nejde o konec repertoáru.
-- Nápověda ukazuje tahy, četnosti, podíly a cíl pevné větve. Tah mimo data nemusí být šachově špatný: aplikace nepoužívá engine.
+- Nápověda ukazuje tahy, četnosti, podíly a doporučený hlavní tah (při opakování zaznamenaný cíl). Procento poslední uznané odpovědi zůstává viditelné i po tahu soupeře. Tah mimo data nemusí být šachově špatný: aplikace nepoužívá engine.
 
 ## Přihlášení a soukromí
 

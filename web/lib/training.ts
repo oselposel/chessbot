@@ -7,7 +7,6 @@ export type TrainingConfig = {
   seed: string[];
   plies: number;
   policy: "repertoire" | "line";
-  minimumShare: number;
   uniform: boolean;
 };
 export type TrainingStep = {
@@ -58,15 +57,24 @@ export function openingNotation(chess: Chess): string {
       `${i + 1}. ${history[i * 2]}${history[i * 2 + 1] ? " " + history[i * 2 + 1] : ""}`,
   ).join(" ");
 }
-export function relevantMoves(
-  moves: BookMove[],
-  minimumShare: number,
-): BookMove[] {
-  const total = moves.reduce((sum, move) => sum + move.count, 0);
-  // Always keep the main move, even in positions with many equally common choices.
-  return moves.filter(
-    (move, i) => i === 0 || (total > 0 && move.count / total >= minimumShare),
-  );
+export const RUNNER_UP_RATIO = 0.8;
+export function relevantMoves(moves: BookMove[]): BookMove[] {
+  const ranked = moves
+    .filter((move) => move.count > 0)
+    .toSorted((a, b) => b.count - a.count);
+  const [first, second] = ranked;
+  if (!first) return [];
+  // Top two by frequency; ties at the qualifying boundary are treated equally.
+  // Even a fragmented repertoire always has a leader, without an absolute cutoff.
+  const cutoff =
+    second && second.count / first.count >= RUNNER_UP_RATIO
+      ? second.count
+      : first.count;
+  return ranked.filter((move) => move.count >= cutoff);
+}
+export function formatMovePercentage(move: BookMove, total: number): string {
+  if (total <= 0) return "0 %";
+  return `${new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 1 }).format((move.count / total) * 100)} %`;
 }
 export function judgeMove(
   move: string,

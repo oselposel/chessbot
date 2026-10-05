@@ -171,17 +171,21 @@ try {
         if (policy === "line") {
           assert.match(
             await page.locator(".hint-list").innerText(),
-            /Nf3 · cíl/,
+            /Bc4 · doporučení/,
           );
-          await move("f1", "c4");
+          await move("g1", "f3");
           assert.match(
             await page.locator(".feedback").innerText(),
-            /platná alternativa/,
+            /mimo toleranci/,
           );
           assert.match(
             await page.locator(".stats").innerText(),
             /0\s+Mimo repertoár/,
           );
+          await move("f1", "c4");
+          await page
+            .getByRole("heading", { name: "Varianta dokončena.", exact: true })
+            .waitFor();
         } else {
           await move("a2", "a3");
           assert.match(
@@ -203,7 +207,7 @@ try {
     await context.close();
   }
   console.log(
-    "PASS: playable before EOF, pending unknown moves not scored, live hints, stable fixed target, clean empty EOF, cancellation releases next position and ignores obsolete errors.",
+    "PASS: playable before EOF, pending unknown moves not scored, live hints and updated ranking, low-frequency former leader not accepted, clean empty EOF, cancellation releases next position and ignores obsolete errors.",
   );
 } finally {
   await browser.close();

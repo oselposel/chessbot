@@ -31,10 +31,13 @@ $env:APP_ORIGIN = 'http://127.0.0.1:5174/chessbot'
 node tests/browser.qa.mjs
 node tests/streaming.browser.qa.mjs
 node tests/single-game.browser.qa.mjs
+node tests/frequency.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
 
-Streaming QA používá skutečné otevřené `ReadableStream` s mockovanými daty. Ověřuje hraní před koncem indexace, průběžné nápovědy, stabilní cíl větve, bezpečné hodnocení neznámých tahů a uvolnění fronty při přechodu na další pozici.
+Streaming QA používá skutečné otevřené `ReadableStream` s mockovanými daty. Ověřuje hraní před koncem indexace, aktualizované nápovědy a pořadí tahů, bezpečné hodnocení neznámých tahů a uvolnění fronty při přechodu na další pozici.
 
 Single-game QA ověřuje upozornění až po potvrzení jediné partie, pozastavení hráče i soupeře, přesné opakování, výběr jiné pozice, pokračování bez dalších upozornění v daném průchodu a mobilní/tabletový layout.
+
+Frequency QA ověřuje top dvě volby s relativní tolerancí 80 %, přesnou hranici bez zaokrouhlení, shody četností, nejhranější tah pod absolutními 20 %, procenta z celkového počtu partií a odstranění starých nastavení prahu.
