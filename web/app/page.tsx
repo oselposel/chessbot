@@ -375,7 +375,12 @@ export default function Home() {
                 kind: "neutral",
                 text: "Indexování je dokončené. Zkus svou odpověď znovu nebo použij nápovědu.",
               }
-            : previous,
+            : previous.text.startsWith("Obnovuji data stejné pozice")
+              ? {
+                  kind: "neutral",
+                  text: "Pozice je načtená. Můžeš pokračovat od poslední dosažené pozice.",
+                }
+              : previous,
         );
     };
     const fetchData = saved

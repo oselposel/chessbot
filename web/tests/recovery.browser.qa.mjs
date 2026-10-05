@@ -134,6 +134,10 @@ try {
       );
       assert.equal(await page.locator(".move-history").innerText(), history);
       assert.equal(await page.locator(".stats").innerText(), stats);
+      assert.match(
+        await page.locator(".feedback").innerText(),
+        /Pozice je načtená/,
+      );
       assert.equal(await page.evaluate(() => window.recoveryQA.aborted), 1);
       assert.equal(await page.evaluate(() => window.recoveryQA.calls), 4);
       await move("f1", "c4");
