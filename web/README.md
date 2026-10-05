@@ -36,9 +36,12 @@ node tests/replay.browser.qa.mjs
 node tests/recovery.browser.qa.mjs
 node tests/engine.browser.qa.mjs
 node tests/drag.browser.qa.mjs
+node tests/sampling.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
+
+Sampling QA ověřuje pro obě barvy nezávislé losování 70/30 včetně přesné hranice, opakování stejných prvních tahů bez vylučování, zachování vzácné větve, ignorování starého rovnoměrného nastavení a přesné opakování bez nového losování. Průběžná data mění poměr z 30/70 na 70/30 během čekání na soupeře; losování i záznam opakování musí použít nejnovější snapshot.
 
 Streaming QA používá skutečné otevřené `ReadableStream` s mockovanými daty. Ověřuje hraní před koncem indexace, aktualizované nápovědy a pořadí tahů, bezpečné hodnocení neznámých tahů a uvolnění fronty při přechodu na další pozici.
 

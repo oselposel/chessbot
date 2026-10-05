@@ -61,7 +61,7 @@ test("handles black repertoire and only returns legal continuations", () => {
   const book = createRepertoire("Player", "black");
   addGame(book, game("a", "e4 c5 Nf3 d6 d4 cxd4 Nxd4", "black"));
   const chess = new Chess();
-  assert.equal(sampleMove(responses(book, chess), false, () => 0).uci, "e2e4");
+  assert.equal(sampleMove(responses(book, chess), () => 0).uci, "e2e4");
   playUci(chess, "e2e4");
   assert.equal(chess.turn(), "b");
   assert.equal(responses(book, chess)[0].uci, "c7c5");
@@ -74,16 +74,26 @@ test("deduplicates repeated positions within one game", () => {
   addGame(book, game("a", "Nf3 Nf6 Ng1 Ng8 Nf3 Nf6"));
   assert.equal(responses(book, new Chess())[0].count, 1);
 });
-test("weighted and uniform random selection preserve both branches", () => {
+test("frequency sampling is independent and preserves every branch", () => {
   const moves = [
     { uci: "e2e4", san: "e4", count: 9 },
     { uci: "d2d4", san: "d4", count: 1 },
   ];
-  assert.equal(sampleMove(moves, false, () => 0.6).san, "e4");
-  assert.equal(sampleMove(moves, false, () => 0.95).san, "d4");
-  assert.equal(sampleMove(moves, true, () => 0.6).san, "d4");
+  assert.equal(sampleMove(moves, () => 0.6).san, "e4");
+  assert.equal(sampleMove(moves, () => 0.89999).san, "e4");
+  assert.equal(sampleMove(moves, () => 0.9).san, "d4");
+  assert.equal(sampleMove(moves, () => 0.95).san, "d4");
   assert.equal(
-    sampleMove([], false, () => 0),
+    sampleMove(moves, () => 0.6).san,
+    "e4",
+    "previous choices do not affect the draw",
+  );
+  const counts = { e4: 0, d4: 0 };
+  for (let i = 0; i < 1000; i++)
+    counts[sampleMove(moves, () => (i + 0.5) / 1000).san]++;
+  assert.deepEqual(counts, { e4: 900, d4: 100 });
+  assert.equal(
+    sampleMove([], () => 0),
     undefined,
   );
 });

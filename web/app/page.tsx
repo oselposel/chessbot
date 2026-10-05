@@ -132,7 +132,6 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [color, setColor] = useState<PlayerColor>("white");
   const [depth, setDepth] = useState("8");
-  const [mode, setMode] = useState("weighted");
   const [policy, setPolicy] = useState("repertoire");
   const [openingText, setOpeningText] = useState("");
   const [draftSeed, setDraftSeed] = useState<string[]>([]);
@@ -161,6 +160,8 @@ export default function Home() {
   });
   const chessRef = useRef(new Chess());
   const [fen, setFen] = useState(chessRef.current.fen());
+  const opponentPositionRef = useRef({ fen, data, phase });
+  opponentPositionRef.current = { fen, data, phase };
   const [history, setHistory] = useState<string[]>([]);
   const [selected, setSelected] = useState<Square | null>(null);
   const [promotion, setPromotion] = useState<{
@@ -233,7 +234,6 @@ export default function Home() {
         if (typeof draft.name === "string") setUsername(draft.name);
         if (["white", "black"].includes(draft.color)) setColor(draft.color);
         if (["4", "8", "12", "16"].includes(draft.depth)) setDepth(draft.depth);
-        if (["weighted", "uniform"].includes(draft.mode)) setMode(draft.mode);
         if (["repertoire", "line"].includes(draft.policy))
           setPolicy(draft.policy);
         const chess = chessFromMoves(
@@ -289,14 +289,13 @@ export default function Home() {
           name: username,
           color,
           depth,
-          mode,
           policy,
           seed: draftSeed,
           text: openingText,
         }),
       );
     } catch {}
-  }, [ready, username, color, depth, mode, policy, draftSeed, openingText]);
+  }, [ready, username, color, depth, policy, draftSeed, openingText]);
   useEffect(() => {
     if (!auth) return;
     // Check periodically instead of overflowing the browser's maximum timer duration.
@@ -477,16 +476,16 @@ export default function Home() {
     setGeneration((n) => n + 1);
     setPhase("loading");
   }
-  function commit(move: BookMove) {
-    if (!data || !session) return;
+  function commit(move: BookMove, position = data) {
+    if (!position || !session) return;
     stopRequest();
     if (!roundRef.current.replay)
       roundRef.current.steps.push({
         fen,
-        options: data.moves,
+        options: position.moves,
         chosen: move,
-        total: data.total,
-        opening: data.opening,
+        total: position.total,
+        opening: position.opening,
       });
     roundRef.current.cursor++;
     playUci(chessRef.current, move.uci);
@@ -501,20 +500,22 @@ export default function Home() {
     const timer = setTimeout(() => {
       // Restarting/replaying invalidates this timer even before React's cleanup.
       if (roundRef.current !== round || chessRef.current.fen() !== fen) return;
+      const current = opponentPositionRef.current;
+      if (current.fen !== fen || current.phase !== "opponent" || !current.data)
+        return;
+      const position = current.data;
       const saved = roundRef.current.replay
         ? roundRef.current.steps[roundRef.current.cursor]
         : undefined;
-      const move = saved
-        ? saved.chosen
-        : sampleMove(data.moves, session.uniform);
+      const move = saved ? saved.chosen : sampleMove(position.moves);
       if (!move) {
         finish("V této pozici už není další odpověď.");
         return;
       }
-      commit(move);
+      commit(move, position);
       setFeedback({
         kind: "neutral",
-        text: `Soupeř zahrál ${move.san} (${formatMovePercentage(move, data.total)} pokračování v načtených partiích). Jak odpoví ${session.name}?`,
+        text: `Soupeř zahrál ${move.san} (${formatMovePercentage(move, position.total)} pokračování v načtených partiích). Jak odpoví ${session.name}?`,
       });
     }, 550);
     return () => clearTimeout(timer);
@@ -597,7 +598,6 @@ export default function Home() {
         seed: movesOf(chess),
         plies: Number(depth) * 2,
         policy: policy as TrainingConfig["policy"],
-        uniform: mode === "uniform",
       });
       setStats({ correct: 0, mistakes: 0, hints: 0, alternatives: 0 });
       setError("");
@@ -640,7 +640,7 @@ export default function Home() {
       kind: "neutral",
       text: replay
         ? "Procvičuješ zaznamenanou část varianty ze stejného úvodu. Musíš zahrát původně uznané tahy; soupeř zopakuje své stejné odpovědi."
-        : "Nové náhodné pokračování z téhož úvodu.",
+        : "Nový průchod z téhož úvodu. Soupeř losuje podle četnosti; předchozí tahy se mohou znovu opakovat.",
     });
   }
   function resumeTraining() {
@@ -1037,16 +1037,11 @@ export default function Home() {
                   ["16", "16 úplných tahů"],
                 ]}
               />
-              <label htmlFor="mode">Soupeřovy odpovědi</label>
-              <Choice
-                id="mode"
-                value={mode}
-                onChange={setMode}
-                options={[
-                  ["weighted", "Náhodně podle četnosti"],
-                  ["uniform", "Každá odpověď stejně často"],
-                ]}
-              />
+              <p className="note">
+                Soupeř vybírá tahy náhodně podle jejich četnosti v aktuální
+                pozici. Předchozí tahy se nevylučují, takže nový průchod může
+                zopakovat stejnou větev. Během indexace používá aktuální vzorek.
+              </p>
               <Button
                 className="primary-action"
                 disabled={!auth || authBusy || !username.trim()}
@@ -1309,7 +1304,7 @@ export default function Home() {
                 disabled={!auth || !roundRef.current.steps.length}
                 onClick={() => restart(false)}
               >
-                Jiné pokračování ze stejného úvodu
+                Nový průchod ze stejného úvodu
               </Button>
               <Button
                 variant="outline"
@@ -1508,7 +1503,7 @@ export default function Home() {
                 disabled={phase === "loading" || !auth}
                 onClick={() => restart(false)}
               >
-                Jiné pokračování ze stejného úvodu
+                Nový průchod ze stejného úvodu
               </Button>
             </>
           )}

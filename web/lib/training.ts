@@ -7,7 +7,6 @@ export type TrainingConfig = {
   seed: string[];
   plies: number;
   policy: "repertoire" | "line";
-  uniform: boolean;
 };
 export type TrainingStep = {
   fen: string;

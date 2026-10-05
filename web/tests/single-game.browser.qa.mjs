@@ -176,7 +176,7 @@ try {
         await page.evaluate(() => window.singleQA.requests),
         requestsBeforeReplay,
       );
-      await click("Jiné pokračování ze stejného úvodu");
+      await click("Nový průchod ze stejného úvodu");
       await player();
       await move("g1", "f3");
       await single();
@@ -224,7 +224,7 @@ try {
       );
       await move("f1", "c4");
       await complete();
-      await click("Jiné pokračování ze stejného úvodu");
+      await click("Nový průchod ze stejného úvodu");
       await player();
       await move("g1", "f3");
       await single(); // A fresh round warns again, including from completed cache.

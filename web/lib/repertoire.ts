@@ -100,14 +100,13 @@ export function responses(book: Repertoire, chess: Chess): BookMove[] {
 }
 export function sampleMove(
   moves: BookMove[],
-  uniform = false,
   random = Math.random,
 ): BookMove | undefined {
+  // Independent frequency draw: never exclude moves from previous rounds.
   if (!moves.length) return undefined;
-  let target =
-    random() * moves.reduce((sum, m) => sum + (uniform ? 1 : m.count), 0);
+  let target = random() * moves.reduce((sum, m) => sum + m.count, 0);
   for (const move of moves) {
-    target -= uniform ? 1 : move.count;
+    target -= move.count;
     if (target < 0) return move;
   }
   return moves[moves.length - 1];

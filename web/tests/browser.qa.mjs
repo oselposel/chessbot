@@ -231,7 +231,7 @@ try {
   // A new branch keeps the seed and accepts another relevant answer, including castling.
   await page
     .getByRole("button", {
-      name: "Jiné pokračování ze stejného úvodu",
+      name: "Nový průchod ze stejného úvodu",
       exact: true,
     })
     .click();
@@ -258,7 +258,7 @@ try {
   await complete();
   await page
     .getByRole("button", {
-      name: "Jiné pokračování ze stejného úvodu",
+      name: "Nový průchod ze stejného úvodu",
       exact: true,
     })
     .click();
