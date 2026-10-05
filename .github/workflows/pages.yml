@@ -26,7 +26,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - run: node --test tests/repertoire.test.mjs
+      - run: node --test tests/*.test.mjs
       - run: npx tsc --noEmit
       - uses: actions/configure-pages@v5
       - run: npm run build:pages

@@ -1,6 +1,93 @@
 .spin {
   animation: spin 1s linear infinite;
 }
+.auth-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  margin-bottom: 26px;
+}
+.auth-panel > div {
+  flex: 1 1 340px;
+}
+.auth-panel p {
+  color: #a6b1c0;
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 7px 0 0;
+}
+.auth-panel > .load-error {
+  flex-basis: 100%;
+  color: #ffafa6;
+}
+.opening-input {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #364254;
+  border-radius: 8px;
+  background: #101722;
+  color: #f2f4f7;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.opening-input:focus {
+  outline: 2px solid #e8ad55;
+  outline-offset: 2px;
+}
+.opening-input:disabled {
+  opacity: 0.7;
+}
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 20px;
+}
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.move-history b.seed-move {
+  color: #e8ad55;
+}
+.round-summary {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid #3d6355;
+  border-radius: 9px;
+  background: #182c27;
+}
+.round-summary h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.round-summary p,
+.round-summary li {
+  font-size: 13px;
+  color: #bdc9d8;
+  line-height: 1.7;
+}
+.training .wide {
+  white-space: normal;
+  height: auto;
+  min-height: 42px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+@media (max-width: 700px) {
+  .auth-panel {
+    padding: 18px;
+  }
+  .auth-panel > button {
+    width: 100%;
+  }
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);
