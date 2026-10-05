@@ -33,6 +33,7 @@ node tests/streaming.browser.qa.mjs
 node tests/single-game.browser.qa.mjs
 node tests/frequency.browser.qa.mjs
 node tests/replay.browser.qa.mjs
+node tests/recovery.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
@@ -44,3 +45,5 @@ Single-game QA ověřuje upozornění až po potvrzení jediné partie, pozastav
 Frequency QA ověřuje top dvě volby s relativní tolerancí 80 %, přesnou hranici bez zaokrouhlení, shody četností, nejhranější tah pod absolutními 20 %, procenta z celkového počtu partií a odstranění starých nastavení prahu.
 
 Replay QA ověřuje opakování před koncem, během načítání či tahu soupeře a po chybě, vynucení původních odpovědí za obě barvy, stejné tahy soupeře bez losování i síťových požadavků, zrušení starých požadavků/timerů, restart uvnitř opakování a pokračování s rozšířením původního záznamu.
+
+Recovery QA ověřuje nečinný stream s frontou 29, automatickou obnovu, omezený počet pokusů, zrušení při čekání na obnovu, uvolnění fronty i při zaseknutém rušení spojení a ruční obnovu bez ztráty tahů nebo skóre. Časovače jsou v izolovaném prohlížeči zrychlené; unit testy navíc ověřují keepalive řádky, nezměněné snapshoty, měnící se frontu a zaseknuté hlavičky odpovědi.

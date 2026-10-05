@@ -313,13 +313,6 @@ export default function Home() {
     }
     const controller = new AbortController();
     controllerRef.current = controller;
-    const timeout = setTimeout(
-      () =>
-        controller.abort(
-          new Error("Indexování trvalo příliš dlouho. Obnov pozici za chvíli."),
-        ),
-      120_000,
-    );
     let alive = true;
     const isCurrent = () =>
       alive &&
@@ -424,18 +417,28 @@ export default function Home() {
         setPhase("error");
       })
       .finally(() => {
-        clearTimeout(timeout);
         if (controllerRef.current === controller) controllerRef.current = null;
       });
     return () => {
       alive = false;
-      clearTimeout(timeout);
       controller.abort();
     };
     // Switching from loading to a playable phase must keep the same stream alive.
     // A new FEN/session or explicit retry starts a new request instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fen, session, auth, generation]);
+  function refreshPosition() {
+    stopRequest();
+    setError("");
+    setSelected(null);
+    setPromotion(null);
+    setFeedback({
+      kind: "neutral",
+      text: "Obnovuji data stejné pozice. Odehrané tahy zůstávají zachované.",
+    });
+    setGeneration((n) => n + 1);
+    setPhase("loading");
+  }
   function commit(move: BookMove) {
     if (!data || !session) return;
     stopRequest();
@@ -1278,6 +1281,15 @@ export default function Home() {
                 {loadMessage}
               </p>
               <Button
+                variant="outline"
+                className="wide"
+                disabled={!auth}
+                onClick={refreshPosition}
+              >
+                <RefreshCw size={17} />
+                Obnovit pozici
+              </Button>
+              <Button
                 variant="ghost"
                 className="wide"
                 onClick={() =>
@@ -1293,14 +1305,7 @@ export default function Home() {
             </div>
           )}
           {phase === "error" && (
-            <Button
-              className="wide"
-              disabled={!auth}
-              onClick={() => {
-                setGeneration((n) => n + 1);
-                setPhase("loading");
-              }}
-            >
+            <Button className="wide" disabled={!auth} onClick={refreshPosition}>
               Obnovit pozici
             </Button>
           )}

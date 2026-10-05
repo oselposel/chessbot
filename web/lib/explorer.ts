@@ -28,6 +28,20 @@ type RawPosition = {
   queuePosition?: number | null;
   error?: string;
 };
+class ExplorerTimeoutError extends Error {}
+
+// Do not rely on fetch/reader cancellation alone to settle the serial queue.
+// A stalled connection (or a suspended browser tab) must not block future positions.
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", abort);
+    });
+  });
+}
 function count(values: {
   white: number;
   draws: number;
@@ -124,100 +138,165 @@ export class ExplorerClient {
           moves: "100",
           recentGames: "0",
         });
-        const response = await this.request(
-          `https://explorer.lichess.org/player?${params}`,
-          {
-            headers: {
-              Authorization: `Bearer ${this.token}`,
-              Accept: "application/x-ndjson",
-            },
-            credentials: "omit",
-            redirect: "error",
-            signal,
-          },
-        );
-        if (response.status === 401)
-          throw new AuthenticationError(
-            "Přihlášení vypršelo nebo bylo odvoláno. Přihlas se znovu.",
-          );
-        if (response.status === 429) {
-          const retry = Number(response.headers.get("Retry-After"));
-          this.blockedUntil =
-            Date.now() +
-            Math.max(60, Number.isFinite(retry) ? retry : 60) * 1000;
-          throw new Error(
-            "Lichess omezil požadavky. Počkej alespoň minutu a pak obnov pozici.",
-          );
-        }
-        if (!response.ok || !response.body)
-          throw new Error(
-            response.status === 404
-              ? "Hráč nebyl nalezen."
-              : "Explorer je nedostupný. Obnov načítání pozice za chvíli.",
-          );
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let last: RawPosition | undefined;
-        const line = (text: string) => {
-          if (!text.trim()) return;
-          const raw = JSON.parse(text) as RawPosition;
-          if (!raw || raw.error)
-            throw new Error("Explorer přerušil načítání pozice.");
-          if (
-            raw.queuePosition != null &&
-            (!Number.isSafeInteger(raw.queuePosition) || raw.queuePosition < 0)
-          )
-            throw new Error("Explorer vrátil neplatnou pozici ve frontě.");
-          const snapshot = normalizePosition(raw, copy);
-          last = raw;
-          // A queue position of zero is not a completion signal. Publish data now,
-          // but only a clean EOF makes the snapshot final (and allows end-of-book).
-          if (this.cache.size >= 500 && !this.cache.has(key))
-            this.cache.delete(this.cache.keys().next().value!);
-          this.cache.set(key, { at: Date.now(), value: snapshot });
-          update(snapshot);
-          progress(
-            (raw.queuePosition || 0) > 0
-              ? `Indexování hráče · pozice ve frontě ${raw.queuePosition}`
-              : `Data se doplňují na pozadí · ${count(raw)} partií`,
-          );
-        };
-        try {
-          while (true) {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            return await this.load(key, params, copy, signal, progress, update);
+          } catch (error) {
             signal.throwIfAborted();
-            const { value, done } = await reader.read();
-            buffer += decoder.decode(value, { stream: !done });
-            let end;
-            while ((end = buffer.indexOf("\n")) >= 0) {
-              line(buffer.slice(0, end));
-              buffer = buffer.slice(end + 1);
-            }
-            if (buffer.length > 2_000_000)
-              throw new Error("Explorer vrátil příliš velkou odpověď.");
-            if (done) {
-              line(buffer);
-              break;
+            if (!(error instanceof ExplorerTimeoutError)) throw error;
+            if (attempt >= 2)
+              throw new Error(
+                "Lichess opakovaně neposílá nové výsledky. Pozice i odehrané tahy jsou zachované. Zkus za chvíli obnovit pozici.",
+              );
+            progress(
+              `Lichess neposílá nové výsledky · obnovuji spojení (${attempt + 1}/2). Pozice zůstává zachovaná.`,
+            );
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              await abortable(
+                new Promise<void>((resolve) => {
+                  timer = setTimeout(resolve, (attempt + 1) * 5_000);
+                }),
+                signal,
+              );
+            } finally {
+              clearTimeout(timer);
             }
           }
-        } finally {
-          await reader.cancel().catch(() => {});
-          reader.releaseLock();
         }
-        signal.throwIfAborted();
-        if (!last || (last.queuePosition || 0) > 0)
-          throw new Error(
-            "Indexování hráče není dokončené. Zkus za chvíli obnovit pozici.",
-          );
-        const value = normalizePosition(last, copy, true);
-        if (this.cache.size >= 500 && !this.cache.has(key))
-          this.cache.delete(this.cache.keys().next().value!);
-        this.cache.set(key, { at: Date.now(), value });
-        update(value);
-        progress(`Pozice načtena · ${value.total} partií`);
-        return value;
       });
     this.queue = task;
     return task;
+  }
+  private async load(
+    key: string,
+    params: URLSearchParams,
+    copy: Chess,
+    signal: AbortSignal,
+    progress: (message: string) => void,
+    update: (position: PositionData) => void,
+  ): Promise<PositionData> {
+    const controller = new AbortController();
+    const abort = () => controller.abort(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    const timeout = () =>
+      controller.abort(
+        new ExplorerTimeoutError("Lichess neposílá nové výsledky."),
+      );
+    const deadline = setTimeout(timeout, 120_000);
+    let idle = setTimeout(timeout, 45_000);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = await abortable(
+        this.request(`https://explorer.lichess.org/player?${params}`, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: "application/x-ndjson",
+          },
+          credentials: "omit",
+          redirect: "error",
+          signal: controller.signal,
+        }),
+        controller.signal,
+      );
+      if (response.status === 401)
+        throw new AuthenticationError(
+          "Přihlášení vypršelo nebo bylo odvoláno. Přihlas se znovu.",
+        );
+      if (response.status === 429) {
+        const retry = Number(response.headers.get("Retry-After"));
+        this.blockedUntil =
+          Date.now() + Math.max(60, Number.isFinite(retry) ? retry : 60) * 1000;
+        throw new Error(
+          "Lichess omezil požadavky. Počkej alespoň minutu a pak obnov pozici.",
+        );
+      }
+      if (!response.ok || !response.body)
+        throw new Error(
+          response.status === 404
+            ? "Hráč nebyl nalezen."
+            : "Explorer je nedostupný. Obnov načítání pozice za chvíli.",
+        );
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let last: RawPosition | undefined;
+      let fingerprint: string | undefined;
+      const line = (text: string) => {
+        if (!text.trim()) return;
+        const raw = JSON.parse(text) as RawPosition;
+        if (!raw || raw.error)
+          throw new Error("Explorer přerušil načítání pozice.");
+        if (
+          raw.queuePosition != null &&
+          (!Number.isSafeInteger(raw.queuePosition) || raw.queuePosition < 0)
+        )
+          throw new Error("Explorer vrátil neplatnou pozici ve frontě.");
+        const snapshot = normalizePosition(raw, copy);
+        const nextFingerprint = JSON.stringify(raw);
+        // Heartbeats and repeated queue/snapshot rows do not prove progress.
+        if (nextFingerprint !== fingerprint) {
+          fingerprint = nextFingerprint;
+          clearTimeout(idle);
+          idle = setTimeout(timeout, 45_000);
+        }
+        last = raw;
+        // A queue position of zero is not a completion signal. Publish data now,
+        // but only a clean EOF makes the snapshot final (and allows end-of-book).
+        if (this.cache.size >= 500 && !this.cache.has(key))
+          this.cache.delete(this.cache.keys().next().value!);
+        this.cache.set(key, { at: Date.now(), value: snapshot });
+        update(snapshot);
+        progress(
+          (raw.queuePosition || 0) > 0
+            ? `Indexování hráče · pozice ve frontě ${raw.queuePosition}`
+            : `Data se doplňují na pozadí · ${count(raw)} partií`,
+        );
+      };
+      while (true) {
+        controller.signal.throwIfAborted();
+        const { value, done } = await abortable(
+          reader.read(),
+          controller.signal,
+        );
+        buffer += decoder.decode(value, { stream: !done });
+        let end;
+        while ((end = buffer.indexOf("\n")) >= 0) {
+          line(buffer.slice(0, end));
+          buffer = buffer.slice(end + 1);
+        }
+        if (buffer.length > 2_000_000)
+          throw new Error("Explorer vrátil příliš velkou odpověď.");
+        if (done) {
+          line(buffer);
+          break;
+        }
+      }
+      controller.signal.throwIfAborted();
+      if (!last || (last.queuePosition || 0) > 0)
+        throw new Error(
+          "Indexování hráče není dokončené. Zkus za chvíli obnovit pozici.",
+        );
+      const value = normalizePosition(last, copy, true);
+      if (this.cache.size >= 500 && !this.cache.has(key))
+        this.cache.delete(this.cache.keys().next().value!);
+      this.cache.set(key, { at: Date.now(), value });
+      update(value);
+      progress(`Pozice načtena · ${value.total} partií`);
+      return value;
+    } catch (error) {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      throw error;
+    } finally {
+      clearTimeout(deadline);
+      clearTimeout(idle);
+      signal.removeEventListener("abort", abort);
+      if (reader) {
+        // Cancellation itself can stall; never await it before releasing the queue.
+        void reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+    }
   }
 }
