@@ -35,6 +35,7 @@ node tests/frequency.browser.qa.mjs
 node tests/replay.browser.qa.mjs
 node tests/recovery.browser.qa.mjs
 node tests/engine.browser.qa.mjs
+node tests/drag.browser.qa.mjs
 ```
 
 Browser QA mockuje OAuth i Explorer. Ověřuje tok přihlášení a trénink, ale nespotřebovává autorizaci skutečného účtu. Živý autorizovaný import vyžaduje ruční přihlášení uživatele.
@@ -50,3 +51,5 @@ Replay QA ověřuje opakování před koncem, během načítání či tahu soupe
 Recovery QA ověřuje nečinný stream s frontou 29, automatickou obnovu, omezený počet pokusů, zrušení při čekání na obnovu, uvolnění fronty i při zaseknutém rušení spojení a ruční obnovu bez ztráty tahů nebo skóre. Časovače jsou v izolovaném prohlížeči zrychlené; unit testy navíc ověřují keepalive řádky, nezměněné snapshoty, měnící se frontu a zaseknuté hlavičky odpovědi.
 
 Engine QA spouští skutečný vendored Stockfish WASM (trénink/OAuth nadále mockuje). Ověřuje stažení až po zapnutí, výpočet v prohlížeči, mat za černého, hloubku, změny pozic, skrytou PV, vypnutí a obnovu po chybě. Nápověda musí zvýraznit pouze výchozí figuru bez cílových polí; plná odpověď odhalí SAN/PV bez zahrání tahu a při přesném opakování respektuje zaznamenaný tah místo nejhranějšího. Unit testy kontrolují znaménko pro obě strany, bounds, SAN/promotion/castling, cache, přerušení výpočtu a ochranu před zastaralými výsledky.
+
+Drag QA používá skutečné vstupy myši a dotyků přes Chrome DevTools (ne mockované PointerEvents) ve vlastním headless Edge. Ověřuje souběh klikání a přetahování, kliknutí s drobným pohybem, klávesnici, pointer capture a potlačení druhého kliknutí, ghost figuru/hover pole, vrácení nelegálních/neuznaných tahů, výhoz mimo šachovnici, Esc/blur/pointercancel/změnu pozice, proměnu obou barev včetně zrušení a podproměny, rošádu, braní, přesné opakování, blokovanou fázi a otočenou šachovnici. Autorizace a Explorer jsou nadále pouze testovací.

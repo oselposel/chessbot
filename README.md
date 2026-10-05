@@ -7,12 +7,13 @@ Osobní trénink šachových zahájení podle repertoáru libovolného hráče n
 ## Použití
 
 1. Přihlas se přes Lichess svým účtem. Nickname hráče, jehož repertoár kopíruješ, může být jiný.
-2. Zvol barvu a zadej úvodní tahy zápisem nebo na šachovnici za obě strany. Mezinárodní SAN: `1. e4 e5 2. Nf3 Nc6`; UCI: `e2e4 e7e5 g1f3 b8c6`. Prázdný úvod začíná ze základní pozice.
+2. Zvol barvu a zadej úvodní tahy zápisem nebo na šachovnici za obě strany, klikáním či přetahováním figurek. Mezinárodní SAN: `1. e4 e5 2. Nf3 Nc6`; UCI: `e2e4 e7e5 g1f3 b8c6`. Prázdný úvod začíná ze základní pozice.
 3. Zvol režim, délku pokračování a způsob losování soupeře. Pak spusť trénink.
 4. Kdykoli po prvním odehraném tahu použij „Zopakovat stejnou variantu“, i před dokončením. Při opakování musíš zahrát stejné uznané odpovědi a soupeř zopakuje své stejné tahy. Po procvičení rozpracované větve můžeš pokračovat od poslední dosažené pozice; po dokončení lze také vylosovat jiné pokračování ze stejného úvodu.
 
 ## Hodnocení a souvislé varianty
 
+- **Ovládání šachovnice:** tah lze zadat dvěma kliknutími nebo přetažením figury myší, prstem či perem. Tažení se od běžného kliknutí odlišuje po pohybu alespoň 6 px; figura sleduje ukazatel, výchozí figura se dočasně skryje a cílové pole se zvýrazní. Táhnout lze jen figurou strany na tahu; během tréninku pouze v hráčově fázi. Pro obě metody platí stejné ověření legality, repertoáru a přesné větve. Rošáda se zadává tažením krále na cílové pole, proměna nabídne výběr figury včetně podproměny. Puštění mimo šachovnici, na stejné pole, Esc, přerušení dotyku, změna pozice/orientace, scroll, resize nebo ztráta fokusované karty tažení zruší. Neuznaná odpověď vrátí figuru podle běžných pravidel skórování; drop sám nevytváří druhé kliknutí. Dotykové posouvání stránky je zakázané jen na právě táhnutelných figurách, nikoli na celé stránce. Klávesové ovládání tlačítek a slabá nápověda zůstávají zachované.
 - **Repertoár:** vždy se uznává nejhranější tah. Druhý se uznává také, pokud dosahuje alespoň 80 % četnosti prvního (poměr počtů, ne rozdíl 20 procentních bodů). Například 45 % / 40 % uznáme obojí, 45 % / 30 % jen první. Další tahy se neuznávají kromě shodné četnosti na uznávaném pořadí; vazby se nerozhodují podle pořadí odpovědi API. Není zde absolutní minimum 20 % ani výběr starých prahů.
 - **Procenta:** četnost tahu se dělí celkovým počtem partií hráče v dané pozici z Exploreru, ne pouze součtem zobrazených tahů. Podíl a počty ukazuje odhalení odpovědi i její hodnocení. Zaokrouhlení zobrazených procent nemění uznávání; rozhodují skutečné počty.
 - **Konkrétní varianta:** při prvním průchodu se doporučuje nejhranější odpověď a blízká druhá volba se také uznává. Doporučení se může při indexaci aktualizovat. Soupeř se losuje; po dokončení se přesně opakuje skutečně zahraná větev. Doložený tah mimo toleranci není označován za šachovou chybu, ale nepokračuje se jím.

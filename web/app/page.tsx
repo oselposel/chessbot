@@ -37,6 +37,7 @@ import {
 } from "@/lib/lichess-auth";
 import { ExplorerClient, type PositionData } from "@/lib/explorer";
 import { EnginePanel } from "@/components/engine-panel";
+import { usePieceDrag } from "@/lib/use-piece-drag";
 import {
   chessFromMoves,
   judgeMove,
@@ -194,6 +195,23 @@ export default function Home() {
   const hintSquare =
     hint && phase === "player" ? hintMove?.uci.slice(0, 2) : null;
   const latest = chessRef.current.history({ verbose: true }).at(-1);
+  const draggablePiece = (square: Square) => {
+    if ((!editing && phase !== "player") || promotion) return undefined;
+    const piece = chessRef.current.get(square);
+    return piece?.color === (editing ? chessRef.current.turn() : side)
+      ? piece
+      : undefined;
+  };
+  const {
+    boardRef,
+    drag,
+    handlers: dragHandlers,
+  } = usePieceDrag({
+    position: `${fen}|${phase}|${trainingColor}|${generation}|${!!promotion}`,
+    piece: draggablePiece,
+    select: setSelected,
+    drop: attemptBoardMove,
+  });
   useEffect(() => {
     if (hintSquare)
       document
@@ -752,15 +770,19 @@ export default function Home() {
       return;
     }
     if (!selected) return;
+    attemptBoardMove(selected, square);
+  }
+  function attemptBoardMove(from: Square, to: Square) {
+    if ((!editing && phase !== "player") || promotion) return;
     if (
-      chess
-        .moves({ square: selected, verbose: true })
-        .some((move) => move.to === square && move.promotion)
+      chessRef.current
+        .moves({ square: from, verbose: true })
+        .some((move) => move.to === to && move.promotion)
     ) {
-      setPromotion({ from: selected, to: square });
+      setPromotion({ from, to });
       return;
     }
-    boardMove(selected + square);
+    boardMove(from + to);
   }
   async function signIn() {
     setAuthError("");
@@ -961,8 +983,8 @@ export default function Home() {
             spellCheck={false}
           />
           <p className="note">
-            Zadej tahy obou stran zápisem nebo klikáním na šachovnici. Prázdný
-            úvod začíná ze základní pozice.
+            Zadej tahy obou stran zápisem, klikáním nebo přetahováním figurek na
+            šachovnici. Prázdný úvod začíná ze základní pozice.
           </p>
           {editing ? (
             <>
@@ -1085,7 +1107,9 @@ export default function Home() {
             </span>
           </div>
           <div
-            className="board"
+            ref={boardRef}
+            {...dragHandlers}
+            className={`board ${drag ? "dragging" : ""}`}
             aria-label={`Šachovnice, ${trainingColor === "white" ? "bílé" : "černé"} dole`}
             aria-busy={phase === "loading" || phase === "opponent"}
           >
@@ -1102,10 +1126,11 @@ export default function Home() {
                 <button
                   type="button"
                   key={square}
+                  data-square={square}
                   aria-label={`${square}${piece ? `, ${pieceLabel(piece.color, piece.type)}` : ""}${hintSquare === square ? ", nápověda: tato figura má táhnout" : ""}`}
                   aria-pressed={selected === square}
                   onClick={() => clickSquare(square)}
-                  className={`square ${(f + r) % 2 ? "light" : "dark"} ${last ? "last-move" : ""} ${selected === square ? "selected" : ""} ${hintSquare === square ? "hinted" : ""}`}
+                  className={`square ${(f + r) % 2 ? "light" : "dark"} ${last ? "last-move" : ""} ${selected === square ? "selected" : ""} ${hintSquare === square ? "hinted" : ""} ${draggablePiece(square) ? "draggable" : ""} ${drag?.from === square ? "drag-source" : ""} ${drag?.over === square ? "drag-target" : ""}`}
                   disabled={(!editing && phase !== "player") || !!promotion}
                 >
                   {piece && (
@@ -1126,7 +1151,20 @@ export default function Home() {
               );
             })}
           </div>
+          {drag && (
+            <span
+              className={`piece drag-ghost ${drag.piece.color}`}
+              aria-hidden="true"
+              style={{ left: drag.x, top: drag.y, fontSize: drag.size }}
+            >
+              {symbols[drag.piece.color + drag.piece.type]}
+            </span>
+          )}
           <EnginePanel fen={fen} reveal={reveal && phase === "player"} />
+          <p className="note board-input-note">
+            Figurou můžeš táhnout klikáním nebo přetažením myší či prstem.
+            Přetahování zrušíš klávesou Esc nebo puštěním mimo šachovnici.
+          </p>
           {promotion && (
             <div className="promotion" role="group" aria-label="Proměna pěšce">
               <span>Proměnit na:</span>
